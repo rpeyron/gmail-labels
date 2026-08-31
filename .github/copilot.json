@@ -64,11 +64,28 @@
 
     "ui": {
       "style": "minimalistic",
+      "interface": {
+        "layout": "single unified tree with operation summary at top",
+        "components": [
+          "operation-summary-top: displays sources, target, and operation count",
+          "label-hierarchy: single tree with 5 columns (Label, Mails, Source, Target, Actions)",
+          "source-selection: multiple checkboxes for selecting source labels",
+          "target-selection: single radio button for selecting target label",
+          "actions-column: inline rename and delete action buttons with icons",
+          "tree-toolbar: expand all and collapse all controls",
+          "validation-errors: displays any validation errors"
+        ]
+      },
       "tree-view": [
         "indentation based on depth",
         "virtualization required",
-        "configurable columns",
-        "multi-selection"
+        "5 columns: Label, Mails count, Source checkbox, Target radio, Actions",
+        "label icon displayed before each label name",
+        "expand/collapse controls for each node and global expand all / collapse all",
+        "multi-selection for sources",
+        "single selection for target",
+        "path display using / separator (e.g., 'Projects/Ongoing')",
+        "delete action only enabled when mailCount is 0"
       ],
       "dry-run": [
         "show planned operations",

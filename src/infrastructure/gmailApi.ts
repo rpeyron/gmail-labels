@@ -63,6 +63,22 @@ const demoLabels: GmailLabel[] = [
     mailCount: 67,
     children: [{ id: 'demo-admin-invoices', name: 'Invoices', mailCount: 21 }],
   },
+  {
+    id: 'demo-empty-projects',
+    name: 'Empty projects',
+    mailCount: 0,
+    children: [{ id: 'demo-empty-projects-archived', name: 'Archived', mailCount: 0 }],
+  },
+  {
+    id: 'demo-empty-ops',
+    name: 'Ops backlog',
+    mailCount: 0,
+  },
+  {
+    id: 'demo-empty-archive',
+    name: 'Archive room',
+    mailCount: 0,
+  },
 ];
 
 export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] => {

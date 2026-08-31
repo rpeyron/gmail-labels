@@ -4,13 +4,27 @@ A Vite + React + TypeScript application for managing Gmail labels safely.
 
 ## Features
 
-- View a richer label hierarchy in a more ergonomic tree UI
-- Select multiple labels for merge operations
-- Rename labels before applying changes
+- View a unified label hierarchy with dedicated Source and Target columns
+- Expand, collapse, and expand all nodes in the hierarchy from the tree UI
+- Select multiple source labels via checkboxes
+- Select a single target label via radio button
+- Preview source paths and target path in the summary at top
+- Rename labels using inline action buttons with a pencil icon
+- Delete labels only when they have 0 messages
 - Preview planned changes in dry-run mode
 - Validate merge targets and missing labels
 - Real Gmail API integration with OAuth authentication
 - Demo mode for testing without a Google account
+
+## Interface
+
+The application features a single unified tree with:
+- **Label column**: Shows the full label hierarchy with depth indentation and a label icon
+- **Mails column**: Displays the message count for each label
+- **Source column**: Checkbox to select labels as sources for merge operations
+- **Target column**: Radio button to select a single target label for merging
+- **Actions column**: Rename and delete buttons with icon-based actions
+- **Operation Summary** (top): Shows sources paths (with / separator), target path, and operation count
 
 ## Development
 

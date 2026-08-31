@@ -1,60 +1,139 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Tree } from 'react-arborist';
 import { buildLabelPlan, flattenLabelTree, type LabelNode } from '../../domain/labelOperations';
 import { loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
 import { applyMergeLabels, applyRenameLabel } from '../../infrastructure/gmailOperations';
 
-type ArboristNode = LabelNode & {
-  children?: ArboristNode[];
-};
-
 type TreeRowProps = {
-  node: ArboristNode;
-  style: React.CSSProperties;
+  node: LabelNode;
+  depth: number;
   selectedIds: string[];
   onToggleSelection: (id: string) => void;
   renameMap: Record<string, string>;
   onRename: (id: string, value: string) => void;
   targetLabelId: string;
   onTargetSelect: (id: string) => void;
-  showTargetColumn?: boolean;
+  editingLabelId: string | null;
+  onRenameStart: (id: string) => void;
+  onRenameEnd: (id: string) => void;
+  onDelete: (id: string) => void;
+  expandedIds: Record<string, boolean>;
+  onToggleExpand: (id: string) => void;
+  labelFilter: string;
 };
 
-const TreeRow = ({ node, style, selectedIds, onToggleSelection, renameMap, onRename, targetLabelId, onTargetSelect, showTargetColumn = false }: TreeRowProps) => {
+const TreeGridRow = ({
+  node,
+  depth,
+  selectedIds,
+  onToggleSelection,
+  renameMap,
+  onRename,
+  targetLabelId,
+  onTargetSelect,
+  editingLabelId,
+  onRenameStart,
+  onRenameEnd,
+  onDelete,
+  expandedIds,
+  onToggleExpand,
+  labelFilter,
+}: TreeRowProps) => {
+  const isSource = selectedIds.includes(node.id);
+  const isTarget = targetLabelId === node.id;
+  const isInternal = (node.children?.length ?? 0) > 0;
+  const hasChildLabels = isInternal;
+  const isRenameActive = (node.mailCount ?? 0) !== 0;
+  const isDeleteActive = (node.mailCount ?? 0) === 0 && !hasChildLabels;
+  const currentRenameValue = renameMap[node.id] ?? node.name;
+  const labelIndent = depth * 18;
+  const hasTargetSelection = Boolean(targetLabelId);
+  const normalizedFilter = labelFilter.trim().toLowerCase();
+  const hasMatchingDescendantPath = (currentNode: LabelNode, query: string): boolean =>
+    (currentNode.children ?? []).some((child) => child.name.toLowerCase().includes(query) || hasMatchingDescendantPath(child, query));
+  const rowMatchesFilter = !normalizedFilter || node.name.toLowerCase().includes(normalizedFilter);
+  const hasMatchingDescendant = !normalizedFilter ? false : hasMatchingDescendantPath(node, normalizedFilter);
+  const isFilterParentDimmed = Boolean(normalizedFilter) && !rowMatchesFilter && hasMatchingDescendant;
+
   return (
-    <div style={style} className="tree-row">
-      <div className="tree-cell">
-        <label className="tree-item">
-          {showTargetColumn ? (
+    <>
+      <div className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''}`} role="row">
+        <div className="tree-cell tree-label-cell" style={{ paddingLeft: `${labelIndent}px` }} role="treeitem" aria-level={depth + 1}>
+          {isInternal ? (
+            <button type="button" className="tree-toggle" onClick={() => onToggleExpand(node.id)} aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}>
+              {expandedIds[node.id] ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span className="tree-toggle tree-toggle-leaf">•</span>
+          )}
+          <span className="tree-label-icon" aria-hidden="true">🏷️</span>
+          <span className="tree-label">{node.name}</span>
+        </div>
+        <div className="tree-cell tree-meta" role="cell">{node.mailCount ?? 0} mails</div>
+        <div className="tree-cell" role="cell">
+          <label className={`tree-checkbox ${isSource ? 'is-selected' : ''}`}>
+            <input type="checkbox" checked={isSource} onChange={() => onToggleSelection(node.id)} />
+            <span>Source</span>
+          </label>
+        </div>
+        <div className="tree-cell" role="cell">
+          <label className={`tree-radio ${isTarget ? 'is-selected' : ''} ${hasTargetSelection && !isTarget ? 'is-dimmed' : ''}`}>
+            <input type="radio" name="target-label" checked={isTarget} onClick={() => onTargetSelect(node.id)} />
+            <span>Target</span>
+          </label>
+        </div>
+        <div className="tree-cell tree-actions-cell" role="cell">
+          {editingLabelId === node.id ? (
             <input
-              type="radio"
-              name="target-label"
-              checked={targetLabelId === node.id}
-              onChange={() => onTargetSelect(node.id)}
+              className="rename-input"
+              value={currentRenameValue}
+              onChange={(event) => onRename(node.id, event.target.value)}
+              onBlur={() => onRenameEnd(node.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  onRenameEnd(node.id);
+                }
+              }}
+              autoFocus
+              placeholder="New name"
             />
           ) : (
-            <input type="checkbox" checked={selectedIds.includes(node.id)} onChange={() => onToggleSelection(node.id)} />
+            <>
+              {isRenameActive && (
+                <button type="button" className="action-button action-button-rename" onClick={() => onRenameStart(node.id)} aria-label={`Rename ${node.name}`} title="Rename">
+                  <span aria-hidden="true">✏️</span>
+                </button>
+              )}
+              {isDeleteActive && (
+                <button type="button" className="action-button action-button-delete" onClick={() => onDelete(node.id)} aria-label={`Delete ${node.name}`} title="Delete">
+                  <span aria-hidden="true">🗑️</span>
+                </button>
+              )}
+            </>
           )}
-          <span className="tree-label">{node.name}</span>
-        </label>
+        </div>
       </div>
-      <div className="tree-cell tree-meta">{node.mailCount ?? 0} mails</div>
-      <div className="tree-cell">
-        {showTargetColumn ? (
-          <span className="tree-pill">Target</span>
-        ) : renameMap[node.id] !== undefined ? (
-          <input
-            className="rename-input"
-            value={renameMap[node.id] ?? ''}
-            onChange={(event) => onRename(node.id, event.target.value)}
-            placeholder="Rename"
-          />
-        ) : (
-          <span className="tree-pill">Source</span>
-        )}
-      </div>
-    </div>
+      {isInternal && expandedIds[node.id] && (node.children ?? []).map((child) => (
+        <TreeGridRow
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          selectedIds={selectedIds}
+          onToggleSelection={onToggleSelection}
+          renameMap={renameMap}
+          onRename={onRename}
+          targetLabelId={targetLabelId}
+          onTargetSelect={onTargetSelect}
+          editingLabelId={editingLabelId}
+          onRenameStart={onRenameStart}
+          onRenameEnd={onRenameEnd}
+          onDelete={onDelete}
+          expandedIds={expandedIds}
+          onToggleExpand={onToggleExpand}
+          labelFilter={labelFilter}
+        />
+      ))}
+    </>
   );
 };
 
@@ -65,7 +144,7 @@ type Props = {
 const LabelManager = ({ initialLabels }: Props) => {
   const [labels, setLabels] = useState<LabelNode[]>(initialLabels ?? []);
   const [selected, setSelected] = useState<string[]>([]);
-  const [targetLabelId, setTargetLabelId] = useState('work');
+  const [targetLabelId, setTargetLabelId] = useState<string>('');
   const [renameMap, setRenameMap] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<'preview' | 'apply'>('preview');
   const [dataMode, setDataMode] = useState<GmailDataMode>('demo');
@@ -74,6 +153,23 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [applying, setApplying] = useState(false);
   const [clientId, setClientId] = useState('');
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [labelFilter, setLabelFilter] = useState('');
+
+  useEffect(() => {
+    const initialExpanded: Record<string, boolean> = {};
+    const populate = (nodes: LabelNode[]) => {
+      nodes.forEach((node) => {
+        if ((node.children?.length ?? 0) > 0) {
+          initialExpanded[node.id] = true;
+          populate(node.children ?? []);
+        }
+      });
+    };
+    populate(labels);
+    setExpandedIds(initialExpanded);
+  }, [labels]);
 
   useEffect(() => {
     let active = true;
@@ -111,6 +207,110 @@ const LabelManager = ({ initialLabels }: Props) => {
 
   const updateRename = (id: string, value: string) => {
     setRenameMap((current) => ({ ...current, [id]: value }));
+  };
+
+  const removeLabelFromTree = (nodes: LabelNode[], idToRemove: string): LabelNode[] =>
+    nodes
+      .filter((node) => node.id !== idToRemove)
+      .map((node) => ({
+        ...node,
+        children: node.children ? removeLabelFromTree(node.children, idToRemove) : undefined,
+      }))
+      .filter((node) => node.id !== idToRemove || !node.children || node.children.length > 0);
+
+  const handleDeleteLabel = (id: string) => {
+    const targetNode = flattened.find((label) => label.id === id);
+    if (!targetNode || (targetNode.mailCount ?? 0) > 0) {
+      return;
+    }
+
+    setLabels((current) => removeLabelFromTree(current, id));
+    setSelected((current) => current.filter((item) => item !== id));
+    setRenameMap((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setTargetLabelId((current) => (current === id ? '' : current));
+    setEditingLabelId((current) => (current === id ? null : current));
+  };
+
+  const collectAllIds = (node: LabelNode): string[] => [node.id, ...(node.children ?? []).flatMap(collectAllIds)];
+
+  const filterLabels = (nodes: LabelNode[], query: string): LabelNode[] => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return nodes;
+    }
+
+    return nodes.reduce<LabelNode[]>((acc, node) => {
+      const children = filterLabels(node.children ?? [], normalizedQuery);
+      const matches = node.name.toLowerCase().includes(normalizedQuery);
+
+      if (matches || children.length > 0) {
+        acc.push({
+          ...node,
+          children: children.length > 0 ? children : undefined,
+        });
+      }
+
+      return acc;
+    }, []);
+  };
+
+  const filteredLabels = useMemo(() => filterLabels(labels, labelFilter), [labels, labelFilter]);
+
+  const hasMatchingDescendantPath = (node: LabelNode, query: string): boolean =>
+    (node.children ?? []).some((child) => child.name.toLowerCase().includes(query) || hasMatchingDescendantPath(child, query));
+
+  const getSourceNames = (): string[] => {
+    const findLabel = (nodes: LabelNode[], id: string, path: string[] = []): string | null => {
+      for (const node of nodes) {
+        const newPath = [...path, node.name];
+        if (node.id === id) {
+          return newPath.join('/');
+        }
+        const found = findLabel(node.children ?? [], id, newPath);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    return selected
+      .map((id) => findLabel(labels, id))
+      .filter((name): name is string => name !== null);
+  };
+
+  const getTargetName = (): string | null => {
+    const findLabel = (nodes: LabelNode[], id: string, path: string[] = []): string | null => {
+      for (const node of nodes) {
+        const newPath = [...path, node.name];
+        if (node.id === id) {
+          return newPath.join('/');
+        }
+        const found = findLabel(node.children ?? [], id, newPath);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    return findLabel(labels, targetLabelId);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((current) => ({
+      ...current,
+      [id]: !(current[id] ?? false),
+    }));
+  };
+
+  const expandAll = () => {
+    const next = Object.fromEntries(labels.flatMap((node) => collectAllIds(node).map((id) => [id, true])));
+    setExpandedIds(next);
+  };
+
+  const collapseAll = () => {
+    setExpandedIds({});
   };
 
   const handleGoogleSignIn = async () => {
@@ -240,103 +440,114 @@ const LabelManager = ({ initialLabels }: Props) => {
       </header>
 
       <section className="panel">
-        <div className="panel-header">
-          <h2>Label tree</h2>
-          <span>{selected.length} selected</span>
-        </div>
-        <div className="tree-shell">
-          <div className="tree-header">
-            <div className="tree-cell">Label</div>
-            <div className="tree-cell">Mails</div>
-            <div className="tree-cell">Selection</div>
+        <div className="operation-summary-top">
+          <div className="summary-row">
+            <div className="summary-label">Sources:</div>
+            <div className="summary-value">
+              {getSourceNames().length > 0 ? `${getSourceNames().length} selected · ${getSourceNames().join(', ')}` : '(none selected)'}
+            </div>
           </div>
-          <Tree<ArboristNode>
-            data={labels as ArboristNode[]}
-            openByDefault
-            width="100%"
-            height={360}
-            rowHeight={44}
-            paddingTop={8}
-            paddingBottom={8}
-            children={(node) => (
-              <TreeRow
-                node={node.node.data}
-                style={node.style}
-                selectedIds={selected}
-                onToggleSelection={toggleSelection}
-                renameMap={renameMap}
-                onRename={updateRename}
-                targetLabelId={targetLabelId}
-                onTargetSelect={setTargetLabelId}
-                showTargetColumn={false}
-              />
-            )}
-          />
+          <div className="summary-row">
+            <div className="summary-label">Target:</div>
+            <div className="summary-value">{getTargetName() ?? '(none selected)'}</div>
+          </div>
+          {plan.operations.length > 0 && (
+            <div className="summary-row">
+              <div className="summary-label">Operations:</div>
+              <div className="summary-value">{plan.operations.length} planned</div>
+            </div>
+          )}
         </div>
       </section>
 
       <section className="panel">
         <div className="panel-header">
-          <h2>Target label</h2>
-          <select value={targetLabelId} onChange={(event) => setTargetLabelId(event.target.value)}>
-            {flattened.map((label) => (
-              <option key={label.id} value={label.id}>
-                {label.name}
-              </option>
-            ))}
-          </select>
+          <div className="tree-toolbar">
+            <div className="tree-toolbar-left">
+              <div className="label-filter-wrap">
+                <input
+                  className="label-filter-input"
+                  type="text"
+                  value={labelFilter}
+                  onChange={(event) => setLabelFilter(event.target.value)}
+                  placeholder="Filter labels"
+                  aria-label="Filter labels"
+                />
+                {labelFilter && (
+                  <button
+                    type="button"
+                    className="label-filter-clear"
+                    onClick={() => setLabelFilter('')}
+                    aria-label="Clear filter"
+                    title="Clear filter"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <button type="button" className="mini-button" onClick={expandAll}>
+                Expand all
+              </button>
+              <button type="button" className="mini-button" onClick={collapseAll}>
+                Collapse all
+              </button>
+            </div>
+          </div>
         </div>
         <div className="tree-shell">
-          <div className="tree-header">
-            <div className="tree-cell">Label</div>
-            <div className="tree-cell">Mails</div>
-            <div className="tree-cell">Target</div>
+          <div className="tree-header" role="row">
+            <div className="tree-cell" style={{ gridColumn: '1 / 2' }}>Label</div>
+            <div className="tree-cell" style={{ gridColumn: '2 / 3' }}>Mails</div>
+            <div className="tree-cell" style={{ gridColumn: '3 / 4' }}>Source</div>
+            <div className="tree-cell" style={{ gridColumn: '4 / 5' }}>Target</div>
+            <div className="tree-cell" style={{ gridColumn: '5 / 6' }}>Actions</div>
           </div>
-          <Tree<ArboristNode>
-            data={labels as ArboristNode[]}
-            openByDefault
-            width="100%"
-            height={240}
-            rowHeight={44}
-            paddingTop={8}
-            paddingBottom={8}
-            children={(node) => (
-              <TreeRow
-                node={node.node.data}
-                style={node.style}
+          <div className="tree-grid" role="tree">
+            {filteredLabels.map((label) => (
+              <TreeGridRow
+                key={label.id}
+                node={label}
+                depth={0}
                 selectedIds={selected}
                 onToggleSelection={toggleSelection}
                 renameMap={renameMap}
                 onRename={updateRename}
                 targetLabelId={targetLabelId}
-                onTargetSelect={setTargetLabelId}
-                showTargetColumn
+                onTargetSelect={(id) => setTargetLabelId((current) => (current === id ? '' : id))}
+                editingLabelId={editingLabelId}
+                onRenameStart={(id) => setEditingLabelId(id)}
+                onRenameEnd={(id) => {
+                  const value = (renameMap[id] ?? '').trim();
+                  if (value) {
+                    setEditingLabelId(null);
+                    return;
+                  }
+                  setRenameMap((current) => {
+                    const next = { ...current };
+                    delete next[id];
+                    return next;
+                  });
+                  setEditingLabelId(null);
+                }}
+                onDelete={handleDeleteLabel}
+                expandedIds={expandedIds}
+                onToggleExpand={toggleExpand}
+                labelFilter={labelFilter}
               />
-            )}
-          />
+            ))}
+          </div>
         </div>
         <div className="panel-content">
-          <div className="operation-summary">
-            <p>Mode: {mode === 'preview' ? 'Preview only' : 'Apply changes'}</p>
-            <p>{dataMode === 'demo' ? 'Demo mode is active. No Google account is required.' : 'Google account mode is selected.'}</p>
-            <p>{plan.canApply ? 'Plan is valid' : 'Plan contains validation errors'}</p>
-          </div>
           {plan.validationErrors.length > 0 ? (
-            <ul>
-              {plan.validationErrors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
+            <div className="validation-errors">
+              <p className="error-title">Validation errors:</p>
+              <ul>
+                {plan.validationErrors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
-          <ul>
-            {plan.operations.map((operation) => (
-              <li key={`${operation.type}-${'targetId' in operation ? operation.targetId : ''}-${'sourceId' in operation ? operation.sourceId : ''}`}>
-                {operation.type === 'rename'
-                  ? `Rename ${operation.targetId} -> ${renameMap[operation.targetId] ?? ''}`
-                  : `Merge ${operation.sourceId} into ${operation.targetId}`}
-              </li>
-            ))}
-          </ul>
           {applyMessage ? (
             <div className={`apply-message apply-message-${applyMessage.type}`}>
               {applyMessage.text}
