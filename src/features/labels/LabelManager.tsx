@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildLabelPlan, flattenLabelTree, type LabelNode, type OperationMode } from '../../domain/labelOperations';
-import { loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
+import { fetchGmailLabelDetails, fetchGmailUserProfile, loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
 import { applyMergeLabels, applyRenameLabel, deleteLabel } from '../../infrastructure/gmailOperations';
 
@@ -47,8 +47,8 @@ const TreeGridRow = ({
   const isTarget = targetLabelId === node.id;
   const isInternal = (node.children?.length ?? 0) > 0;
   const hasChildLabels = isInternal;
-  const isRenameActive = (node.mailCount ?? 0) !== 0;
-  const isDeleteActive = (node.mailCount ?? 0) === 0 && !hasChildLabels;
+  const isRenameActive = node.mailCount !== undefined && node.mailCount !== 0;
+  const isDeleteActive = node.mailCount === 0 && !hasChildLabels;
   const currentRenameValue = renameMap[node.id] ?? node.name;
   const labelIndent = depth * 18;
   const hasTargetSelection = Boolean(targetLabelId);
@@ -73,7 +73,7 @@ const TreeGridRow = ({
           <span className="tree-label-icon" aria-hidden="true">🏷️</span>
           <span className="tree-label">{node.name}</span>
         </div>
-        <div className="tree-cell tree-meta" role="cell">{node.mailCount ?? 0} mails</div>
+        <div className="tree-cell tree-meta" role="cell">{node.mailCount === undefined ? '—' : `${node.mailCount} mails`}</div>
         <div className="tree-cell" role="cell">
           <label className={`tree-checkbox ${isSource ? 'is-selected' : ''}`}>
             <input
@@ -179,17 +179,23 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [renameMap, setRenameMap] = useState<Record<string, string>>({});
   const [operationMode, setOperationMode] = useState<OperationMode>('merge');
   const [activeOperation, setActiveOperation] = useState<OperationMode | null>(null);
-  const [reviewMode, setReviewMode] = useState<'preview' | 'apply'>('preview');
   const [dataMode, setDataMode] = useState<GmailDataMode>('demo');
   const [accessToken, setAccessToken] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [operationProgress, setOperationProgress] = useState<Array<{ id: string; label: string; total: number; processed: number; status: 'running' | 'success' | 'error' }>>([]);
-  const [clientId, setClientId] = useState('');
+  const [clientId, setClientId] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    return window.localStorage.getItem('gmail-label-manager.client-id') ?? '';
+  });
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [labelFilter, setLabelFilter] = useState('');
+  const [refreshingLabels, setRefreshingLabels] = useState(false);
 
   useEffect(() => {
     const initialExpanded: Record<string, boolean> = {};
@@ -209,12 +215,32 @@ const LabelManager = ({ initialLabels }: Props) => {
     let active = true;
 
     setLoading(true);
-    loadGmailLabels(dataMode, accessToken).then((items) => {
-      if (active) {
-        setLabels(items);
-        setLoading(false);
+    const loadAccountData = async () => {
+      try {
+        const [items, profile] = await Promise.all([
+          loadGmailLabels(dataMode, accessToken),
+          dataMode === 'gmail' && accessToken ? fetchGmailUserProfile(accessToken) : Promise.resolve(null),
+        ]);
+        if (active) {
+          setLabels(items);
+          setUserEmail(profile?.emailAddress ?? '');
+          setLoading(false);
+        }
+      } catch (error) {
+        if (active) {
+          setLoading(false);
+          if (error instanceof Error && error.message.includes('(401)')) {
+            setAccessToken('');
+            setUserEmail('');
+            setApplyMessage({ type: 'error', text: 'Your Google session has expired. Please sign in again.' });
+          } else {
+            setApplyMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to load Gmail data.' });
+          }
+        }
       }
-    });
+    };
+
+    void loadAccountData();
 
     return () => {
       active = false;
@@ -222,6 +248,68 @@ const LabelManager = ({ initialLabels }: Props) => {
   }, [dataMode, accessToken]);
 
   const flattened = useMemo(() => flattenLabelTree(labels), [labels]);
+
+  const ensureLabelMailCount = async (labelId: string): Promise<boolean> => {
+    if (dataMode === 'demo' || flattened.some((label) => label.id === labelId && label.mailCount !== undefined)) {
+      return true;
+    }
+
+    if (!accessToken) {
+      setApplyMessage({ type: 'error', text: 'Please sign in with your Google Account first.' });
+      return false;
+    }
+
+    try {
+      const details = await fetchGmailLabelDetails(labelId, accessToken);
+      setLabels((current) => updateNodeById(current, labelId, (node) => ({ ...node, mailCount: details.messagesTotal })));
+      return true;
+    } catch (error) {
+      setApplyMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to load Gmail label details.',
+      });
+      return false;
+    }
+  };
+
+  const ensureOperationMailCounts = async (operations: Array<{ type: string; sourceId?: string; targetId: string }>) => {
+    const ids = [
+      ...new Set(
+        operations.flatMap((operation) =>
+          [operation.targetId, operation.sourceId].filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    ];
+    const counts = new Map<string, number>();
+
+    for (const id of ids) {
+      const current = flattened.find((label) => label.id === id);
+      if (current?.mailCount !== undefined) {
+        counts.set(id, current.mailCount);
+        continue;
+      }
+
+      if (dataMode === 'demo') {
+        counts.set(id, current?.mailCount ?? 0);
+        continue;
+      }
+
+      if (!accessToken) {
+        return null;
+      }
+
+      try {
+        const details = await fetchGmailLabelDetails(id, accessToken);
+        counts.set(id, details.messagesTotal ?? 0);
+        setLabels((currentLabels) => updateNodeById(currentLabels, id, (node) => ({ ...node, mailCount: details.messagesTotal })));
+      } catch (error) {
+        setApplyMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to load Gmail label details.' });
+        return null;
+      }
+    }
+
+    return counts;
+  };
 
   const selectedForCurrentOperation = useMemo(() => {
     if (operationMode === 'rename') {
@@ -235,14 +323,17 @@ const LabelManager = ({ initialLabels }: Props) => {
     return selected;
   }, [operationMode, renameMap, selected]);
 
-  const getOperationMailCount = (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) => {
+  const getOperationMailCount = (
+    operation: { type: string; sourceId?: string; targetId: string; newName?: string },
+    hydratedCounts?: Map<string, number>,
+  ) => {
     if (operation.type === 'delete') {
       return 0;
     }
 
     const labelId = operation.type === 'merge' ? operation.sourceId ?? operation.targetId : operation.targetId;
     const match = flattened.find((label) => label.id === labelId);
-    return Math.max(0, match?.mailCount ?? 0);
+    return Math.max(0, hydratedCounts?.get(labelId) ?? match?.mailCount ?? 0);
   };
 
   const plan = useMemo(
@@ -252,10 +343,10 @@ const LabelManager = ({ initialLabels }: Props) => {
         selectedLabelIds: selectedForCurrentOperation,
         targetLabelId: operationMode === 'merge' ? targetLabelId : '',
         renameMap,
-        dryRun: reviewMode === 'preview',
+        dryRun: true,
         mode: operationMode,
       }),
-    [labels, selectedForCurrentOperation, targetLabelId, renameMap, operationMode, reviewMode],
+    [labels, selectedForCurrentOperation, targetLabelId, renameMap, operationMode],
   );
 
   const toggleSelection = (id: string) => {
@@ -452,6 +543,31 @@ const LabelManager = ({ initialLabels }: Props) => {
     setExpandedIds({});
   };
 
+  const refreshLabels = async () => {
+    if (applying || refreshingLabels) {
+      return;
+    }
+
+    try {
+      setRefreshingLabels(true);
+      const refreshedLabels = await loadGmailLabels(dataMode, accessToken);
+      setLabels(refreshedLabels);
+      setSelected([]);
+      setTargetLabelId('');
+      setRenameMap({});
+      setActiveOperation(null);
+      setOperationProgress([]);
+      setApplyMessage(null);
+    } catch (error) {
+      setApplyMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to refresh labels.',
+      });
+    } finally {
+      setRefreshingLabels(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     if (!clientId.trim()) {
       setApplyMessage({ type: 'error', text: 'Please enter your Google OAuth client ID first.' });
@@ -459,9 +575,12 @@ const LabelManager = ({ initialLabels }: Props) => {
     }
 
     try {
+      window.localStorage.setItem('gmail-label-manager.client-id', clientId.trim());
       setApplying(true);
       const token = await requestGoogleAccessToken(clientId);
+      const profile = await fetchGmailUserProfile(token);
       setAccessToken(token);
+      setUserEmail(profile.emailAddress);
       setDataMode('gmail');
       setApplyMessage({ type: 'success', text: 'Signed in to Google Account.' });
       setTimeout(() => setApplyMessage(null), 3000);
@@ -506,6 +625,12 @@ const LabelManager = ({ initialLabels }: Props) => {
     return walk(labels, []);
   };
 
+  const getRenamedLabelName = (labelId: string, newName: string): string => {
+    const currentPath = findLabelPath(labelId);
+    const parentPath = currentPath?.includes('/') ? currentPath.slice(0, currentPath.lastIndexOf('/')) : '';
+    return parentPath ? `${parentPath}/${newName}` : newName;
+  };
+
   const canRunOperation = plan.operations.length > 0 && plan.validationErrors.length === 0;
 
   const getProgressItemId = (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) =>
@@ -548,9 +673,10 @@ const LabelManager = ({ initialLabels }: Props) => {
     }
 
     if (operation.type === 'rename') {
+      const newName = getRenamedLabelName(operation.targetId, operation.newName ?? '');
       const result = await applyRenameLabel({
         labelId: operation.targetId,
-        newName: operation.newName ?? '',
+        newName,
         accessToken,
       });
       if (!result.success) {
@@ -596,6 +722,11 @@ const LabelManager = ({ initialLabels }: Props) => {
       setActiveOperation(null);
       setApplyMessage(null);
 
+      const hydratedCounts = await ensureOperationMailCounts(executionOperations);
+      if (!hydratedCounts) {
+        return;
+      }
+
       const progressEntries = executionOperations.map((operation) => {
         const id = getProgressItemId(operation);
         const label =
@@ -608,7 +739,7 @@ const LabelManager = ({ initialLabels }: Props) => {
         return {
           id,
           label,
-          total: getOperationMailCount(operation),
+          total: getOperationMailCount(operation, hydratedCounts),
           processed: 0,
           status: 'running' as const,
         };
@@ -619,7 +750,7 @@ const LabelManager = ({ initialLabels }: Props) => {
       for (let index = 0; index < executionOperations.length; index += 1) {
         const operation = executionOperations[index];
         const itemId = getProgressItemId(operation);
-        const total = getOperationMailCount(operation);
+        const total = getOperationMailCount(operation, hydratedCounts);
 
         if (dataMode === 'demo') {
           for (let processed = 0; processed <= total; processed += Math.max(1, Math.ceil(total / 10))) {
@@ -704,16 +835,32 @@ const LabelManager = ({ initialLabels }: Props) => {
           <p className="hero-copy">Preview merges, rename labels, and keep a clear overview of your hierarchy before applying anything.</p>
         </div>
         <div className="actions">
-          <select value={dataMode} onChange={(event) => setDataMode(event.target.value as GmailDataMode)}>
+          <div className="account-picker">
+            <label className="account-picker-label" htmlFor="data-mode">Data source</label>
+            <select id="data-mode" value={dataMode} onChange={(event) => setDataMode(event.target.value as GmailDataMode)}>
             <option value="demo">Demo mode</option>
-            <option value="gmail">Google account</option>
-          </select>
+              <option value="gmail">Google account · OAuth</option>
+            </select>
+            <span className={`oauth-status ${accessToken ? 'oauth-status-connected' : ''}`}>
+              {dataMode === 'gmail' ? (accessToken ? 'OAuth connected' : 'OAuth sign-in required') : 'Local demo data'}
+            </span>
+            {dataMode === 'gmail' && accessToken && userEmail ? (
+              <span className="account-identity" title={userEmail}>
+                <span className="account-identity-icon" aria-hidden="true">◉</span>
+                {userEmail}
+              </span>
+            ) : null}
+          </div>
           {dataMode === 'gmail' && !accessToken ? (
             <>
               <input
                 className="token-input"
                 value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setClientId(value);
+                  window.localStorage.setItem('gmail-label-manager.client-id', value);
+                }}
                 placeholder="Enter Google OAuth client ID"
                 aria-label="Google OAuth client ID"
                 disabled={applying}
@@ -723,20 +870,17 @@ const LabelManager = ({ initialLabels }: Props) => {
               </button>
             </>
           ) : accessToken ? (
-            <button className="sign-out-button" onClick={() => setAccessToken('')} disabled={applying}>
+            <button
+              className="sign-out-button"
+              onClick={() => {
+                setAccessToken('');
+                setUserEmail('');
+              }}
+              disabled={applying}
+            >
               Sign out
             </button>
           ) : null}
-          <button className={reviewMode === 'preview' ? 'active' : ''} onClick={() => setReviewMode('preview')} disabled={applying}>
-            Preview
-          </button>
-          <button
-            className={reviewMode === 'apply' ? 'active' : ''}
-            onClick={() => setReviewMode('apply')}
-            disabled={applying || dataMode === 'demo'}
-          >
-            Review
-          </button>
         </div>
       </header>
 
@@ -858,6 +1002,9 @@ const LabelManager = ({ initialLabels }: Props) => {
               <button type="button" className="mini-button" onClick={collapseAll}>
                 Collapse all
               </button>
+              <button type="button" className="mini-button" onClick={refreshLabels} disabled={applying || refreshingLabels}>
+                {refreshingLabels ? 'Refreshing…' : 'Refresh labels'}
+              </button>
             </div>
           </div>
         </div>
@@ -877,8 +1024,13 @@ const LabelManager = ({ initialLabels }: Props) => {
                 depth={0}
                 selectedIds={selected}
                 onToggleSelection={(id) => {
-                  clearProgressForNewOperation();
-                  toggleSelection(id);
+                  void (async () => {
+                    if (!(await ensureLabelMailCount(id))) {
+                      return;
+                    }
+                    clearProgressForNewOperation();
+                    toggleSelection(id);
+                  })();
                 }}
                 renameMap={renameMap}
                 onRename={updateRename}
@@ -887,20 +1039,30 @@ const LabelManager = ({ initialLabels }: Props) => {
                   if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
                     return;
                   }
-                  clearProgressForNewOperation();
-                  setOperationMode('merge');
-                  setActiveOperation('merge');
-                  setTargetLabelId((current) => (current === id ? '' : id));
+                  void (async () => {
+                    if (!(await ensureLabelMailCount(id))) {
+                      return;
+                    }
+                    clearProgressForNewOperation();
+                    setOperationMode('merge');
+                    setActiveOperation('merge');
+                    setTargetLabelId((current) => (current === id ? '' : id));
+                  })();
                 }}
                 editingLabelId={editingLabelId}
                 onRenameStart={(id) => {
                   if (applying || activeOperation === 'merge' || activeOperation === 'delete') {
                     return;
                   }
-                  clearProgressForNewOperation();
-                  setOperationMode('rename');
-                  setActiveOperation('rename');
-                  setEditingLabelId(id);
+                  void (async () => {
+                    if (!(await ensureLabelMailCount(id))) {
+                      return;
+                    }
+                    clearProgressForNewOperation();
+                    setOperationMode('rename');
+                    setActiveOperation('rename');
+                    setEditingLabelId(id);
+                  })();
                 }}
                 onRenameEnd={(id) => {
                   const value = (renameMap[id] ?? '').trim();
@@ -921,11 +1083,16 @@ const LabelManager = ({ initialLabels }: Props) => {
                   if (applying || activeOperation === 'merge' || activeOperation === 'rename') {
                     return;
                   }
-                  clearProgressForNewOperation();
-                  setSelected([id]);
-                  setTargetLabelId('');
-                  setOperationMode('delete');
-                  setActiveOperation('delete');
+                  void (async () => {
+                    if (!(await ensureLabelMailCount(id))) {
+                      return;
+                    }
+                    clearProgressForNewOperation();
+                    setSelected([id]);
+                    setTargetLabelId('');
+                    setOperationMode('delete');
+                    setActiveOperation('delete');
+                  })();
                 }}
                 expandedIds={expandedIds}
                 onToggleExpand={toggleExpand}

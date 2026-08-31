@@ -33,6 +33,34 @@ describe('Gmail Operations', () => {
           }),
         }),
       );
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('verifies a child label rename using its complete Gmail label name', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'label-123', name: 'Projects/Renamed' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'label-123', name: 'Projects/Renamed' }),
+        });
+
+      const result = await applyRenameLabel({
+        labelId: 'label-123',
+        newName: 'Projects/Renamed',
+        accessToken: 'token-abc',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockFetch.mock.calls[0][1]).toEqual(expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Projects/Renamed' }),
+      }));
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it('returns an error when the API call fails', async () => {

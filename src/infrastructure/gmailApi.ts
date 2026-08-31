@@ -17,6 +17,10 @@ export type GmailApiLabel = {
 
 export type GmailDataMode = 'demo' | 'gmail';
 
+export type GmailUserProfile = {
+  emailAddress: string;
+};
+
 type GmailApiResponse = {
   labels?: GmailApiLabel[];
 };
@@ -117,7 +121,7 @@ export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] =
 
       if (indexValue === segments.length - 1) {
         node.id = label.id;
-        node.mailCount = label.messagesTotal ?? 0;
+        node.mailCount = label.messagesTotal;
       }
 
       if (indexValue > 0) {
@@ -149,9 +153,38 @@ const fetchGmailLabels = async (accessToken?: string): Promise<GmailApiLabel[]> 
 
     const payload = (await response.json()) as GmailApiResponse;
     return payload.labels ?? [];
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Unable to fetch Gmail labels')) {
+      throw error;
+    }
     return [];
   }
+};
+
+export const fetchGmailUserProfile = async (accessToken: string): Promise<GmailUserProfile> => {
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Unable to fetch Gmail profile (${response.status}): ${errorBody}`);
+  }
+
+  return (await response.json()) as GmailUserProfile;
+};
+
+export const fetchGmailLabelDetails = async (labelId: string, accessToken: string): Promise<GmailApiLabel> => {
+  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/labels/${encodeURIComponent(labelId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Unable to fetch Gmail label details (${response.status}): ${errorBody}`);
+  }
+
+  return (await response.json()) as GmailApiLabel;
 };
 
 export const loadGmailLabels = async (mode: GmailDataMode = 'demo', accessToken?: string): Promise<GmailLabel[]> => {

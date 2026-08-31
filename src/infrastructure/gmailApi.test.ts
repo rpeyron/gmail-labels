@@ -10,10 +10,8 @@ describe('loadGmailLabels', () => {
     expect(labels[1].name).toBe('Personal');
   });
 
-  it('does not substitute demo data when Gmail mode is unavailable', async () => {
-    const labels = await loadGmailLabels('gmail');
-
-    expect(labels).toEqual([]);
+  it('reports an authentication error when Gmail mode is unavailable', async () => {
+    await expect(loadGmailLabels('gmail')).rejects.toThrow('Unable to fetch Gmail labels (401)');
   });
 
   it('builds a nested tree from slash-separated Gmail label names', () => {
