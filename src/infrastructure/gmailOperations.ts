@@ -10,6 +10,11 @@ export type ApplyMergeInput = {
   accessToken: string;
 };
 
+export type DeleteLabelInput = {
+  labelId: string;
+  accessToken: string;
+};
+
 export type OperationResult = {
   success: boolean;
   error?: string;
@@ -104,6 +109,19 @@ export const applyMergeLabels = async (input: ApplyMergeInput): Promise<Operatio
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to merge labels',
+    };
+  }
+};
+
+export const deleteLabel = async (input: DeleteLabelInput): Promise<OperationResult> => {
+  try {
+    const endpoint = `https://gmail.googleapis.com/gmail/v1/users/me/labels/${encodeURIComponent(input.labelId)}`;
+    await makeGmailApiCall(endpoint, 'DELETE', undefined, input.accessToken);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete label',
     };
   }
 };

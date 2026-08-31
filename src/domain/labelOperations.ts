@@ -5,9 +5,12 @@ export type LabelNode = {
   children?: LabelNode[];
 };
 
+export type OperationMode = 'merge' | 'rename' | 'delete';
+
 export type LabelOperation =
   | { type: 'merge'; sourceId: string; targetId: string; dryRun: boolean }
-  | { type: 'rename'; targetId: string; newName: string; dryRun: boolean };
+  | { type: 'rename'; targetId: string; newName: string; dryRun: boolean }
+  | { type: 'delete'; targetId: string; dryRun: boolean };
 
 export type LabelPlan = {
   operations: LabelOperation[];
@@ -21,26 +24,11 @@ export type BuildLabelPlanInput = {
   targetLabelId: string;
   renameMap: Record<string, string>;
   dryRun: boolean;
+  mode?: OperationMode;
 };
 
 const collectIds = (labels: LabelNode[]): string[] => {
   return labels.flatMap((label) => [label.id, ...collectIds(label.children ?? [])]);
-};
-
-const isDescendantOf = (labels: LabelNode[], sourceId: string, targetId: string): boolean => {
-  const visit = (nodes: LabelNode[]): boolean => {
-    return nodes.some((node) => {
-      if (node.id === sourceId) {
-        return false;
-      }
-      if (node.id === targetId) {
-        return (node.children ?? []).some((child) => child.id === sourceId || isDescendantOf([child], sourceId, targetId));
-      }
-      return visit(node.children ?? []);
-    });
-  };
-
-  return visit(labels);
 };
 
 export const flattenLabelTree = (labels: LabelNode[]) => {
@@ -60,6 +48,7 @@ export const buildLabelPlan = ({
   targetLabelId,
   renameMap,
   dryRun,
+  mode = 'merge',
 }: BuildLabelPlanInput): LabelPlan => {
   const availableIds = new Set(collectIds(labels));
   const validationErrors: string[] = [];
@@ -70,31 +59,43 @@ export const buildLabelPlan = ({
     }
   });
 
-  if (!availableIds.has(targetLabelId)) {
+  if (targetLabelId && !availableIds.has(targetLabelId)) {
     validationErrors.push(`Target label ${targetLabelId} does not exist`);
   }
 
   const operations: LabelOperation[] = [];
 
-  Object.entries(renameMap).forEach(([targetId, newName]) => {
-    if (availableIds.has(targetId)) {
-      operations.push({ type: 'rename', targetId, newName, dryRun });
-    }
-  });
+  if (mode === 'rename') {
+    Object.entries(renameMap).forEach(([targetId, newName]) => {
+      if (availableIds.has(targetId) && newName.trim()) {
+        operations.push({ type: 'rename', targetId, newName: newName.trim(), dryRun });
+      }
+    });
+  }
 
-  const renamedTargets = new Set(Object.keys(renameMap));
+  if (mode === 'merge') {
+    const renamedTargets = new Set(Object.keys(renameMap));
 
-  selectedLabelIds.forEach((sourceId) => {
-    if (
-      availableIds.has(sourceId) &&
-      availableIds.has(targetLabelId) &&
-      sourceId !== targetLabelId &&
-      !renamedTargets.has(sourceId) &&
-      !isDescendantOf(labels, sourceId, targetLabelId)
-    ) {
-      operations.push({ type: 'merge', sourceId, targetId: targetLabelId, dryRun });
-    }
-  });
+    selectedLabelIds.forEach((sourceId) => {
+      if (
+        availableIds.has(sourceId) &&
+        targetLabelId &&
+        availableIds.has(targetLabelId) &&
+        sourceId !== targetLabelId &&
+        !renamedTargets.has(sourceId)
+      ) {
+        operations.push({ type: 'merge', sourceId, targetId: targetLabelId, dryRun });
+      }
+    });
+  }
+
+  if (mode === 'delete') {
+    selectedLabelIds.forEach((labelId) => {
+      if (availableIds.has(labelId)) {
+        operations.push({ type: 'delete', targetId: labelId, dryRun });
+      }
+    });
+  }
 
   return {
     operations,

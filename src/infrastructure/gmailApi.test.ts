@@ -5,7 +5,7 @@ describe('loadGmailLabels', () => {
   it('returns demo data when demo mode is selected', async () => {
     const labels = await loadGmailLabels('demo');
 
-    expect(labels).toHaveLength(3);
+    expect(labels).toHaveLength(6);
     expect(labels[0].name).toBe('Projects');
     expect(labels[1].name).toBe('Personal');
   });
@@ -13,7 +13,7 @@ describe('loadGmailLabels', () => {
   it('returns a fallback dataset when Gmail mode is unavailable', async () => {
     const labels = await loadGmailLabels('gmail');
 
-    expect(labels).toHaveLength(3);
+    expect(labels).toHaveLength(6);
     expect(labels[0].name).toBe('Projects');
   });
 

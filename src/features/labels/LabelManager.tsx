@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildLabelPlan, flattenLabelTree, type LabelNode } from '../../domain/labelOperations';
+import { buildLabelPlan, flattenLabelTree, type LabelNode, type OperationMode } from '../../domain/labelOperations';
 import { loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
-import { applyMergeLabels, applyRenameLabel } from '../../infrastructure/gmailOperations';
+import { applyMergeLabels, applyRenameLabel, deleteLabel } from '../../infrastructure/gmailOperations';
 
 type TreeRowProps = {
   node: LabelNode;
@@ -20,6 +20,8 @@ type TreeRowProps = {
   expandedIds: Record<string, boolean>;
   onToggleExpand: (id: string) => void;
   labelFilter: string;
+  isLocked: boolean;
+  activeOperation: OperationMode | null;
 };
 
 const TreeGridRow = ({
@@ -38,6 +40,8 @@ const TreeGridRow = ({
   expandedIds,
   onToggleExpand,
   labelFilter,
+  isLocked,
+  activeOperation,
 }: TreeRowProps) => {
   const isSource = selectedIds.includes(node.id);
   const isTarget = targetLabelId === node.id;
@@ -72,13 +76,24 @@ const TreeGridRow = ({
         <div className="tree-cell tree-meta" role="cell">{node.mailCount ?? 0} mails</div>
         <div className="tree-cell" role="cell">
           <label className={`tree-checkbox ${isSource ? 'is-selected' : ''}`}>
-            <input type="checkbox" checked={isSource} onChange={() => onToggleSelection(node.id)} />
+            <input
+              type="checkbox"
+              checked={isSource}
+              disabled={isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
+              onChange={() => onToggleSelection(node.id)}
+            />
             <span>Source</span>
           </label>
         </div>
         <div className="tree-cell" role="cell">
           <label className={`tree-radio ${isTarget ? 'is-selected' : ''} ${hasTargetSelection && !isTarget ? 'is-dimmed' : ''}`}>
-            <input type="radio" name="target-label" checked={isTarget} onClick={() => onTargetSelect(node.id)} />
+            <input
+              type="radio"
+              name="target-label"
+              checked={isTarget}
+              disabled={isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
+              onClick={() => onTargetSelect(node.id)}
+            />
             <span>Target</span>
           </label>
         </div>
@@ -100,12 +115,26 @@ const TreeGridRow = ({
           ) : (
             <>
               {isRenameActive && (
-                <button type="button" className="action-button action-button-rename" onClick={() => onRenameStart(node.id)} aria-label={`Rename ${node.name}`} title="Rename">
+                <button
+                  type="button"
+                  className="action-button action-button-rename"
+                  onClick={() => onRenameStart(node.id)}
+                  disabled={isLocked || Boolean(activeOperation && activeOperation !== 'rename')}
+                  aria-label={`Rename ${node.name}`}
+                  title="Rename"
+                >
                   <span aria-hidden="true">✏️</span>
                 </button>
               )}
               {isDeleteActive && (
-                <button type="button" className="action-button action-button-delete" onClick={() => onDelete(node.id)} aria-label={`Delete ${node.name}`} title="Delete">
+                <button
+                  type="button"
+                  className="action-button action-button-delete"
+                  onClick={() => onDelete(node.id)}
+                  disabled={isLocked || Boolean(activeOperation && activeOperation !== 'delete')}
+                  aria-label={`Delete ${node.name}`}
+                  title="Delete"
+                >
                   <span aria-hidden="true">🗑️</span>
                 </button>
               )}
@@ -131,6 +160,8 @@ const TreeGridRow = ({
           expandedIds={expandedIds}
           onToggleExpand={onToggleExpand}
           labelFilter={labelFilter}
+          isLocked={isLocked}
+          activeOperation={activeOperation}
         />
       ))}
     </>
@@ -146,11 +177,14 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [selected, setSelected] = useState<string[]>([]);
   const [targetLabelId, setTargetLabelId] = useState<string>('');
   const [renameMap, setRenameMap] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState<'preview' | 'apply'>('preview');
+  const [operationMode, setOperationMode] = useState<OperationMode>('merge');
+  const [activeOperation, setActiveOperation] = useState<OperationMode | null>(null);
+  const [reviewMode, setReviewMode] = useState<'preview' | 'apply'>('preview');
   const [dataMode, setDataMode] = useState<GmailDataMode>('demo');
   const [accessToken, setAccessToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [operationProgress, setOperationProgress] = useState<Array<{ id: string; label: string; total: number; processed: number; status: 'running' | 'success' | 'error' }>>([]);
   const [clientId, setClientId] = useState('');
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -189,19 +223,48 @@ const LabelManager = ({ initialLabels }: Props) => {
 
   const flattened = useMemo(() => flattenLabelTree(labels), [labels]);
 
+  const selectedForCurrentOperation = useMemo(() => {
+    if (operationMode === 'rename') {
+      return Object.keys(renameMap).filter((id) => (renameMap[id] ?? '').trim().length > 0);
+    }
+
+    if (operationMode === 'delete') {
+      return selected;
+    }
+
+    return selected;
+  }, [operationMode, renameMap, selected]);
+
+  const getOperationMailCount = (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) => {
+    if (operation.type === 'delete') {
+      return 0;
+    }
+
+    const labelId = operation.type === 'merge' ? operation.sourceId ?? operation.targetId : operation.targetId;
+    const match = flattened.find((label) => label.id === labelId);
+    return Math.max(0, match?.mailCount ?? 0);
+  };
+
   const plan = useMemo(
     () =>
       buildLabelPlan({
         labels,
-        selectedLabelIds: selected,
-        targetLabelId,
+        selectedLabelIds: selectedForCurrentOperation,
+        targetLabelId: operationMode === 'merge' ? targetLabelId : '',
         renameMap,
-        dryRun: mode === 'preview',
+        dryRun: reviewMode === 'preview',
+        mode: operationMode,
       }),
-    [labels, selected, targetLabelId, renameMap, mode],
+    [labels, selectedForCurrentOperation, targetLabelId, renameMap, operationMode, reviewMode],
   );
 
   const toggleSelection = (id: string) => {
+    if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
+      return;
+    }
+
+    setOperationMode('merge');
+    setActiveOperation('merge');
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
@@ -217,6 +280,82 @@ const LabelManager = ({ initialLabels }: Props) => {
         children: node.children ? removeLabelFromTree(node.children, idToRemove) : undefined,
       }))
       .filter((node) => node.id !== idToRemove || !node.children || node.children.length > 0);
+
+  const findNodeById = (nodes: LabelNode[], id: string): LabelNode | null => {
+    for (const node of nodes) {
+      if (node.id === id) {
+        return node;
+      }
+      const childMatch = findNodeById(node.children ?? [], id);
+      if (childMatch) {
+        return childMatch;
+      }
+    }
+    return null;
+  };
+
+  const updateNodeById = (nodes: LabelNode[], id: string, updater: (node: LabelNode) => LabelNode): LabelNode[] =>
+    nodes.map((node) => {
+      if (node.id === id) {
+        return updater(node);
+      }
+      if ((node.children ?? []).length > 0) {
+        return {
+          ...node,
+          children: updateNodeById(node.children ?? [], id, updater),
+        };
+      }
+      return node;
+    });
+
+  const hasDescendantId = (nodes: LabelNode[], id: string): boolean =>
+    nodes.some((node) => node.id === id || hasDescendantId(node.children ?? [], id));
+
+  const removeNodeById = (nodes: LabelNode[], id: string): LabelNode[] =>
+    nodes
+      .filter((node) => node.id !== id)
+      .map((node) => ({
+        ...node,
+        children: (node.children ?? []).length > 0 ? removeNodeById(node.children ?? [], id) : undefined,
+      }))
+      .filter((node) => node.children !== undefined || node.id !== id);
+
+  const applyDemoOperation = (nodes: LabelNode[], operation: { type: string; sourceId?: string; targetId: string; newName?: string }): LabelNode[] => {
+    if (operation.type === 'rename') {
+      return updateNodeById(nodes, operation.targetId, (node) => ({
+        ...node,
+        name: operation.newName ?? node.name,
+      }));
+    }
+
+    if (operation.type === 'delete') {
+      return removeNodeById(nodes, operation.targetId);
+    }
+
+    if (operation.type === 'merge' && operation.sourceId) {
+      const sourceId = operation.sourceId;
+      const sourceNode = findNodeById(nodes, operation.sourceId);
+      const targetNode = findNodeById(nodes, operation.targetId);
+      if (!sourceNode || !targetNode) {
+        return nodes;
+      }
+
+      const sourceChildren = sourceNode.children ?? [];
+      const sourceHasChildren = sourceChildren.length > 0;
+      const sourceIsParentOfOtherLabels = hasDescendantId(nodes, operation.sourceId) && sourceHasChildren;
+
+      return updateNodeById(nodes, operation.targetId, (node) => ({
+        ...node,
+        mailCount: (node.mailCount ?? 0) + (sourceNode.mailCount ?? 0),
+      })).map((node) =>
+        node.id === sourceId || hasDescendantId(node.children ?? [], sourceId)
+          ? updateNodeById([node], sourceId, (source) => ({ ...source, mailCount: 0 }))[0]
+          : node,
+      );
+    }
+
+    return nodes;
+  };
 
   const handleDeleteLabel = (id: string) => {
     const targetNode = flattened.find((label) => label.id === id);
@@ -334,52 +473,211 @@ const LabelManager = ({ initialLabels }: Props) => {
     }
   };
 
-  const handleApplyChanges = async () => {
-    if (!accessToken || dataMode === 'demo') {
-      setApplyMessage({ type: 'error', text: 'Please sign in with your Google Account first.' });
+  const resetOperation = () => {
+    setSelected([]);
+    setTargetLabelId('');
+    setRenameMap({});
+    setOperationMode('merge');
+    setActiveOperation(null);
+    setApplyMessage(null);
+    setOperationProgress([]);
+  };
+
+  const clearProgressForNewOperation = () => {
+    setApplyMessage(null);
+    setOperationProgress([]);
+  };
+
+  const findLabelPath = (id: string): string | null => {
+    const walk = (nodes: LabelNode[], path: string[] = []): string | null => {
+      for (const node of nodes) {
+        const nextPath = [...path, node.name];
+        if (node.id === id) {
+          return nextPath.join('/');
+        }
+        const found = walk(node.children ?? [], nextPath);
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    };
+
+    return walk(labels, []);
+  };
+
+  const canRunOperation = plan.operations.length > 0 && plan.validationErrors.length === 0;
+
+  const getProgressItemId = (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) =>
+    `${operation.type}:${operation.type === 'merge' ? operation.sourceId ?? operation.targetId : operation.targetId}`;
+
+  const executionOperations = (() => {
+    const mergeOperations = plan.operations.filter(
+      (operation): operation is (typeof plan.operations)[number] & { type: 'merge'; sourceId: string } =>
+        operation.type === 'merge' && Boolean(operation.sourceId),
+    );
+
+    if (mergeOperations.length === 0) {
+      return plan.operations;
+    }
+
+    const sourceIds = new Set(mergeOperations.map((operation) => operation.sourceId));
+    const canDeleteSource = (node: LabelNode): boolean =>
+      (node.children ?? []).every((child) => sourceIds.has(child.id) && canDeleteSource(child));
+
+    const sourceDeletionOperations = mergeOperations
+      .map((operation) => ({ operation, sourceNode: findNodeById(labels, operation.sourceId) }))
+      .filter(({ sourceNode }) => sourceNode && canDeleteSource(sourceNode))
+      .sort(({ operation: first }, { operation: second }) => {
+        const firstDepth = flattened.find((label) => label.id === first.sourceId)?.depth ?? 0;
+        const secondDepth = flattened.find((label) => label.id === second.sourceId)?.depth ?? 0;
+        return secondDepth - firstDepth;
+      })
+      .map(({ operation }) => ({ type: 'delete' as const, targetId: operation.sourceId, dryRun: operation.dryRun }));
+
+    return [...plan.operations, ...sourceDeletionOperations];
+  })();
+
+  const executeOperation = async (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) => {
+    if (dataMode === 'demo') {
+      return { success: true };
+    }
+
+    if (!accessToken) {
+      throw new Error('Please sign in with your Google Account first.');
+    }
+
+    if (operation.type === 'rename') {
+      const result = await applyRenameLabel({
+        labelId: operation.targetId,
+        newName: operation.newName ?? '',
+        accessToken,
+      });
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to rename label');
+      }
+      return result;
+    }
+
+    if (operation.type === 'merge') {
+      const result = await applyMergeLabels({
+        sourceId: operation.sourceId ?? '',
+        targetId: operation.targetId,
+        accessToken,
+      });
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to merge labels');
+      }
+      return result;
+    }
+
+    const result = await deleteLabel({
+      labelId: operation.targetId,
+      accessToken,
+    });
+    if (!result.success) {
+      throw new Error(result.error ?? 'Failed to delete label');
+    }
+    return result;
+  };
+
+  const handleRunOperation = async () => {
+    if (executionOperations.length === 0) {
       return;
     }
 
-    if (plan.validationErrors.length > 0) {
-      setApplyMessage({ type: 'error', text: 'Cannot apply changes: validation errors exist.' });
+    if (dataMode !== 'demo' && !accessToken) {
+      setApplyMessage({ type: 'error', text: 'Please sign in with your Google Account first.' });
       return;
     }
 
     try {
       setApplying(true);
+      setActiveOperation(null);
+      setApplyMessage(null);
 
-      for (const operation of plan.operations) {
-        if (operation.type === 'rename') {
-          const result = await applyRenameLabel({
-            labelId: operation.targetId,
-            newName: renameMap[operation.targetId] ?? '',
-            accessToken,
-          });
-          if (!result.success) {
-            throw new Error(result.error ?? 'Failed to rename label');
+      const progressEntries = executionOperations.map((operation) => {
+        const id = getProgressItemId(operation);
+        const label =
+          operation.type === 'merge'
+            ? `${findLabelPath(operation.sourceId ?? '') ?? 'source'} → ${findLabelPath(operation.targetId) ?? 'target'}`
+            : operation.type === 'rename'
+              ? `${findLabelPath(operation.targetId) ?? 'label'} → ${renameMap[operation.targetId] ?? 'new name'}`
+              : `Delete ${findLabelPath(operation.targetId) ?? 'label'}`;
+
+        return {
+          id,
+          label,
+          total: getOperationMailCount(operation),
+          processed: 0,
+          status: 'running' as const,
+        };
+      });
+
+      setOperationProgress(progressEntries);
+
+      for (let index = 0; index < executionOperations.length; index += 1) {
+        const operation = executionOperations[index];
+        const itemId = getProgressItemId(operation);
+        const total = getOperationMailCount(operation);
+
+        if (dataMode === 'demo') {
+          for (let processed = 0; processed <= total; processed += Math.max(1, Math.ceil(total / 10))) {
+            setOperationProgress((current) =>
+              current.map((entry) =>
+                entry.id === itemId ? { ...entry, processed: Math.min(processed, total), status: 'running' } : entry,
+              ),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 60));
           }
-        } else if (operation.type === 'merge') {
-          const result = await applyMergeLabels({
-            sourceId: operation.sourceId,
-            targetId: operation.targetId,
-            accessToken,
+        }
+
+        if (operation.type === 'delete') {
+          await executeOperation(operation);
+          setLabels((current) => removeNodeById(current, operation.targetId));
+          setSelected((current) => current.filter((id) => id !== operation.targetId));
+          setRenameMap((current) => {
+            const next = { ...current };
+            delete next[operation.targetId];
+            return next;
           });
-          if (!result.success) {
-            throw new Error(result.error ?? 'Failed to merge labels');
-          }
+          setTargetLabelId((current) => (current === operation.targetId ? '' : current));
+        } else {
+          await executeOperation(operation);
+          setLabels((current) => applyDemoOperation(current, operation));
+        }
+
+        setOperationProgress((current) =>
+          current.map((entry) =>
+            entry.id === itemId ? { ...entry, processed: total, status: 'success' } : entry,
+          ),
+        );
+
+        if (operation.type === 'merge' && operation.sourceId) {
+          setSelected((current) => current.filter((id) => id !== operation.sourceId));
         }
       }
 
-      setApplyMessage({ type: 'success', text: `Applied ${plan.operations.length} operations successfully.` });
-      setTimeout(() => {
-        setSelected([]);
-        setRenameMap({});
-        setMode('preview');
-        setApplyMessage(null);
-      }, 2000);
+      setSelected([]);
+      setTargetLabelId('');
+      setActiveOperation(null);
+      setApplyMessage({ type: 'success', text: `Processed ${executionOperations.length} operation${executionOperations.length > 1 ? 's' : ''}.` });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to apply changes.';
+      const message = error instanceof Error ? error.message : 'Failed to process operations.';
       setApplyMessage({ type: 'error', text: message });
+      const failedOperation = plan.operations.find((operation) => {
+        const itemId = getProgressItemId(operation);
+        return operationProgress.some((entry) => entry.id === itemId && entry.status === 'running');
+      });
+      const failedItemId = failedOperation ? getProgressItemId(failedOperation) : null;
+
+      if (failedItemId) {
+        setOperationProgress((current) =>
+          current.map((entry) =>
+            entry.id === failedItemId ? { ...entry, status: 'error', processed: Math.max(0, Math.min(entry.processed, entry.total)) } : entry,
+          ),
+        );
+      }
     } finally {
       setApplying(false);
     }
@@ -421,42 +719,103 @@ const LabelManager = ({ initialLabels }: Props) => {
               Sign out
             </button>
           ) : null}
-          <button className={mode === 'preview' ? 'active' : ''} onClick={() => setMode('preview')} disabled={applying}>
+          <button className={reviewMode === 'preview' ? 'active' : ''} onClick={() => setReviewMode('preview')} disabled={applying}>
             Preview
           </button>
           <button
-            className={mode === 'apply' ? 'active' : ''}
-            onClick={() => setMode('apply')}
+            className={reviewMode === 'apply' ? 'active' : ''}
+            onClick={() => setReviewMode('apply')}
             disabled={applying || dataMode === 'demo'}
           >
             Review
           </button>
-          {mode === 'apply' && accessToken && (
-            <button className="apply-button" onClick={handleApplyChanges} disabled={applying || plan.operations.length === 0}>
-              {applying ? 'Applying…' : 'Apply now'}
-            </button>
-          )}
         </div>
       </header>
 
       <section className="panel">
         <div className="operation-summary-top">
-          <div className="summary-row">
-            <div className="summary-label">Sources:</div>
-            <div className="summary-value">
-              {getSourceNames().length > 0 ? `${getSourceNames().length} selected · ${getSourceNames().join(', ')}` : '(none selected)'}
+          <div className="summary-row summary-row-header">
+            <div className="summary-label">Operation:</div>
+            <div className="summary-value operation-name">
+              {operationMode === 'merge' && getSourceNames().length > 0 && getTargetName()
+                ? `Merge ${getSourceNames().join(' / ')} → ${getTargetName()}`
+                : operationMode === 'rename' && Object.keys(renameMap).length > 0
+                  ? `Rename ${Object.entries(renameMap)
+                      .filter(([, value]) => value.trim())
+                      .map(([id, value]) => `${findLabelPath(id) ?? id} → ${value}`)
+                      .join(' ; ')}`
+                  : operationMode === 'delete' && selected.length > 0
+                    ? `Delete ${selected.map((id) => findLabelPath(id) ?? id).join(' / ')}`
+                    : 'No operation configured'}
+            </div>
+            <div className="operation-actions">
+              <button type="button" className="mini-button mini-button-secondary" onClick={resetOperation} disabled={applying}>
+                Reset
+              </button>
+              <button
+                type="button"
+                className={`run-button ${canRunOperation ? 'run-button-ready' : ''}`}
+                onClick={handleRunOperation}
+                disabled={applying || !canRunOperation}
+              >
+                <span aria-hidden="true">▶</span>
+                {applying ? 'Running…' : 'Run'}
+              </button>
             </div>
           </div>
-          <div className="summary-row">
-            <div className="summary-label">Target:</div>
-            <div className="summary-value">{getTargetName() ?? '(none selected)'}</div>
-          </div>
-          {plan.operations.length > 0 && (
-            <div className="summary-row">
-              <div className="summary-label">Operations:</div>
-              <div className="summary-value">{plan.operations.length} planned</div>
+        </div>
+
+        <div className="panel-content">
+          {operationProgress.length > 0 && (
+            <div className="progress-stack">
+              {operationProgress.map((progress) => (
+                <div key={progress.id} className="operation-progress">
+                  <div className="operation-progress-label-wrap">
+                    <div
+                      className="operation-progress-bar"
+                      aria-label={`${progress.processed} of ${progress.total} mails processed`}
+                    >
+                      <span
+                        style={{
+                          width: `${progress.total === 0 && progress.status === 'success' ? 100 : (progress.processed / Math.max(progress.total, 1)) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="operation-progress-label">{progress.label}</span>
+                  </div>
+                  <div className="operation-progress-content">
+                    <span className="operation-progress-meta">{progress.processed}/{progress.total} mails</span>
+                    <div className="operation-progress-status">
+                      {progress.status === 'running' && <span className="operation-progress-state">Running</span>}
+                      {progress.status === 'success' && <span className="status-icon status-success" aria-label="Succeeded">✓</span>}
+                      {progress.status === 'error' && <span className="status-icon status-error" aria-label="Failed">✕</span>}
+                      {progress.status === 'error' && (
+                        <button type="button" className="progress-retry" onClick={handleRunOperation} aria-label="Retry operation" title="Retry operation">
+                          ↻
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+
+          {plan.validationErrors.length > 0 ? (
+            <div className="validation-errors">
+              <p className="error-title">Validation errors:</p>
+              <ul>
+                {plan.validationErrors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {applyMessage ? (
+            <div className={`apply-message apply-message-${applyMessage.type}`}>
+              {applyMessage.text}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -509,17 +868,37 @@ const LabelManager = ({ initialLabels }: Props) => {
                 node={label}
                 depth={0}
                 selectedIds={selected}
-                onToggleSelection={toggleSelection}
+                onToggleSelection={(id) => {
+                  clearProgressForNewOperation();
+                  toggleSelection(id);
+                }}
                 renameMap={renameMap}
                 onRename={updateRename}
                 targetLabelId={targetLabelId}
-                onTargetSelect={(id) => setTargetLabelId((current) => (current === id ? '' : id))}
+                onTargetSelect={(id) => {
+                  if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
+                    return;
+                  }
+                  clearProgressForNewOperation();
+                  setOperationMode('merge');
+                  setActiveOperation('merge');
+                  setTargetLabelId((current) => (current === id ? '' : id));
+                }}
                 editingLabelId={editingLabelId}
-                onRenameStart={(id) => setEditingLabelId(id)}
+                onRenameStart={(id) => {
+                  if (applying || activeOperation === 'merge' || activeOperation === 'delete') {
+                    return;
+                  }
+                  clearProgressForNewOperation();
+                  setOperationMode('rename');
+                  setActiveOperation('rename');
+                  setEditingLabelId(id);
+                }}
                 onRenameEnd={(id) => {
                   const value = (renameMap[id] ?? '').trim();
                   if (value) {
                     setEditingLabelId(null);
+                    setActiveOperation(null);
                     return;
                   }
                   setRenameMap((current) => {
@@ -528,31 +907,26 @@ const LabelManager = ({ initialLabels }: Props) => {
                     return next;
                   });
                   setEditingLabelId(null);
+                  setActiveOperation(null);
                 }}
-                onDelete={handleDeleteLabel}
+                onDelete={(id) => {
+                  if (applying || activeOperation === 'merge' || activeOperation === 'rename') {
+                    return;
+                  }
+                  clearProgressForNewOperation();
+                  setSelected([id]);
+                  setTargetLabelId('');
+                  setOperationMode('delete');
+                  setActiveOperation('delete');
+                }}
                 expandedIds={expandedIds}
                 onToggleExpand={toggleExpand}
                 labelFilter={labelFilter}
+                isLocked={applying}
+                activeOperation={activeOperation}
               />
             ))}
           </div>
-        </div>
-        <div className="panel-content">
-          {plan.validationErrors.length > 0 ? (
-            <div className="validation-errors">
-              <p className="error-title">Validation errors:</p>
-              <ul>
-                {plan.validationErrors.map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {applyMessage ? (
-            <div className={`apply-message apply-message-${applyMessage.type}`}>
-              {applyMessage.text}
-            </div>
-          ) : null}
         </div>
       </section>
     </main>
