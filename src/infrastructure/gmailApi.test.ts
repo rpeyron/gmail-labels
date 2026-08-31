@@ -10,22 +10,23 @@ describe('loadGmailLabels', () => {
     expect(labels[1].name).toBe('Personal');
   });
 
-  it('returns a fallback dataset when Gmail mode is unavailable', async () => {
+  it('does not substitute demo data when Gmail mode is unavailable', async () => {
     const labels = await loadGmailLabels('gmail');
 
-    expect(labels).toHaveLength(6);
-    expect(labels[0].name).toBe('Projects');
+    expect(labels).toEqual([]);
   });
 
   it('builds a nested tree from slash-separated Gmail label names', () => {
     const labels = normalizeGmailApiLabels([
       { id: 'work', name: 'Work', type: 'user' },
-      { id: 'work/projects', name: 'Work/Projects', type: 'user' },
-      { id: 'work/projects/launch', name: 'Work/Projects/Launch', type: 'user' },
+      { id: 'work/projects', name: 'Work/Projects', type: 'user', messagesTotal: 12 },
+      { id: 'work/projects/launch', name: 'Work/Projects/Launch', type: 'user', messagesTotal: 4 },
       { id: 'personal', name: 'Personal', type: 'user' },
     ]);
 
     expect(labels[0].name).toBe('Work');
+    expect(labels[0].children?.[0].id).toBe('work/projects');
+    expect(labels[0].children?.[0].mailCount).toBe(12);
     expect(labels[0].children?.[0].name).toBe('Projects');
     expect(labels[0].children?.[0].children?.[0].name).toBe('Launch');
   });

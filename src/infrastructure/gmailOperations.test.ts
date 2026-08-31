@@ -67,6 +67,11 @@ describe('Gmail Operations', () => {
           ok: true,
           status: 200,
           json: async () => ({}),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [] }),
         });
 
       const result = await applyMergeLabels({
@@ -76,7 +81,29 @@ describe('Gmail Operations', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('loads every message page before applying batches', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'msg-1' }], nextPageToken: 'next-page' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'msg-2' }] }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ messages: [] }) });
+
+      const result = await applyMergeLabels({ sourceId: 'source-label', targetId: 'target-label', accessToken: 'token-abc' });
+
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+      expect(mockFetch.mock.calls[1][0]).toContain('pageToken=next-page');
     });
 
     it('handles empty label gracefully', async () => {

@@ -632,9 +632,20 @@ const LabelManager = ({ initialLabels }: Props) => {
           }
         }
 
+        await executeOperation(operation);
+
+        if (dataMode === 'demo') {
+          if (operation.type === 'delete') {
+            setLabels((current) => removeNodeById(current, operation.targetId));
+          } else {
+            setLabels((current) => applyDemoOperation(current, operation));
+          }
+        } else {
+          const refreshedLabels = await loadGmailLabels('gmail', accessToken);
+          setLabels(refreshedLabels);
+        }
+
         if (operation.type === 'delete') {
-          await executeOperation(operation);
-          setLabels((current) => removeNodeById(current, operation.targetId));
           setSelected((current) => current.filter((id) => id !== operation.targetId));
           setRenameMap((current) => {
             const next = { ...current };
@@ -642,9 +653,6 @@ const LabelManager = ({ initialLabels }: Props) => {
             return next;
           });
           setTargetLabelId((current) => (current === operation.targetId ? '' : current));
-        } else {
-          await executeOperation(operation);
-          setLabels((current) => applyDemoOperation(current, operation));
         }
 
         setOperationProgress((current) =>

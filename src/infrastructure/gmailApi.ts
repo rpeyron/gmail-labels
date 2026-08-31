@@ -9,6 +9,8 @@ export type GmailApiLabel = {
   id: string;
   name: string;
   type?: string;
+  messagesTotal?: number;
+  threadsTotal?: number;
   messageListVisibility?: string;
   labelListVisibility?: string;
 };
@@ -113,6 +115,11 @@ export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] =
       const path = segments.slice(0, indexValue + 1).join('/').toLowerCase().replace(/[^a-z0-9/]+/g, '-');
       const node = createNode(path, segment);
 
+      if (indexValue === segments.length - 1) {
+        node.id = label.id;
+        node.mailCount = label.messagesTotal ?? 0;
+      }
+
       if (indexValue > 0) {
         const parentPath = segments.slice(0, indexValue).join('/').toLowerCase().replace(/[^a-z0-9/]+/g, '-');
         const parentNode = index.get(parentPath);
@@ -153,9 +160,5 @@ export const loadGmailLabels = async (mode: GmailDataMode = 'demo', accessToken?
   }
 
   const rawLabels = await fetchGmailLabels(accessToken);
-  if (rawLabels.length === 0) {
-    return demoLabels;
-  }
-
   return normalizeGmailApiLabels(rawLabels);
 };

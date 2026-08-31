@@ -62,6 +62,17 @@
       ]
     },
 
+    "mode-parity": {
+      "shared-behavior": [
+        "apply the same operation ordering, source cleanup, progress tracking, and selection reset in demo and Google account modes",
+        "process the next operation only after the previous operation succeeds",
+        "refresh labels after each successful Google account operation"
+      ],
+      "demo-mode": "simulate label and mail-count updates locally",
+      "google-account-mode": "execute Gmail API operations and use refreshed API values as the displayed source of truth",
+      "prohibited": "never use the demo dataset or local demo mutation as the displayed result of a Google account operation"
+    },
+
     "ui": {
       "style": "minimalistic",
       "interface": {
@@ -100,7 +111,10 @@
         "merging moves messages to target label",
         "no automatic deletion",
         "log all operations without sensitive Gmail content",
-        "require explicit confirmation before modifying messages"
+        "require explicit confirmation before modifying messages",
+        "paginate message listing and process message IDs with Gmail batchModify in batches of at most 1000",
+        "retry only transient API failures with bounded exponential backoff",
+        "verify merge, rename, and delete results through follow-up Gmail API reads"
       ],
       "collision-handling": [
         "handle name collisions explicitly",
