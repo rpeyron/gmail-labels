@@ -1,0 +1,138 @@
+{
+  "context": {
+    "include": [
+      "src/"
+    ],
+    "exclude": [
+      "dist/",
+      "node_modules/",
+      "tmp/"
+    ]
+  },
+
+  "stack": {
+    "language": "typescript",
+    "ui": "react",
+    "build": "vite",
+    "architecture": "clean",
+    "rules": [
+      "strict mode enabled",
+      "no implicit any",
+      "pure functions in core logic",
+      "side effects isolated in adapters"
+    ]
+  },
+
+  "requirements": {
+    "delivery": {
+      "scope": "full product version",
+      "priority": [
+        "complete Gmail label tree management",
+        "merge and rename workflows",
+        "dry-run preview before applying changes",
+        "robust handling for large mailboxes"
+      ]
+    },
+
+    "authentication": {
+      "method": "OAuth popup flow",
+      "principle": "use Gmail API only",
+      "required-scopes": [
+        "https://www.googleapis.com/auth/gmail.labels",
+        "https://www.googleapis.com/auth/gmail.modify"
+      ]
+    },
+
+    "features:gmail-label-management": [
+      "display full Gmail label hierarchy",
+      "allow multi-selection for merging",
+      "allow renaming labels",
+      "preserve message history during merges",
+      "handle name collisions explicitly"
+    ],
+
+    "demo-mode": {
+      "enabled": true,
+      "purpose": "allow UI testing without a Google account",
+      "behavior": [
+        "load a built-in dataset of fake Gmail labels",
+        "make the demo mode selectable from the interface",
+        "keep preview and planning flows fully functional in demo mode",
+        "clearly indicate when the app is running without Google authentication"
+      ]
+    },
+
+    "ui": {
+      "style": "minimalistic",
+      "tree-view": [
+        "indentation based on depth",
+        "virtualization required",
+        "configurable columns",
+        "multi-selection"
+      ],
+      "dry-run": [
+        "show planned operations",
+        "no side effects",
+        "default preview mode before applying changes"
+      ]
+    },
+
+    "logic": {
+      "gmail-api": [
+        "use official Gmail API only",
+        "merging moves messages to target label",
+        "no automatic deletion",
+        "log all operations without sensitive Gmail content",
+        "require explicit confirmation before modifying messages"
+      ],
+      "collision-handling": [
+        "handle name collisions explicitly",
+        "require manual resolution or a user-provided alternative name"
+      ]
+    },
+
+    "robustness": {
+      "scale": [
+        "support >100k messages",
+        "support thousands of labels"
+      ],
+      "performance": [
+        "batching",
+        "pagination",
+        "retry on API errors",
+        "avoid loading all messages at once",
+        "progress bar for long operations",
+        "background workers for heavy tasks"
+      ]
+    },
+
+    "tests": {
+      "unit": [
+        "mock Gmail API",
+        "test collisions, empty labels, missing labels",
+        "test dry-run mode"
+      ],
+      "integration": [
+        "test UI with RTL or Playwright",
+        "test large datasets",
+        "test batching and pagination"
+      ],
+      "coverage": 85
+    },
+
+    "safety": [
+      "never log sensitive Gmail data",
+      "require explicit confirmation before modifying messages",
+      "handle quota errors gracefully",
+      "abort cleanly on critical errors"
+    ]
+  },
+
+  "goals": [
+    "deliver a robust Gmail label management tool",
+    "ensure scalability for enterprise-level mailboxes",
+    "maintain clean architecture and strict TypeScript typing",
+    "provide a minimalistic and efficient React UI",
+    "guarantee reliability through extensive automated testing"
+  ]
+}

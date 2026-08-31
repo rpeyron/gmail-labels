@@ -1,0 +1,256 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e5e7eb;
+  background: #111827;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #111827, #1f2937);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.8rem;
+  color: #93c5fd;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.hero-copy {
+  margin-top: 0.35rem;
+  max-width: 560px;
+  color: #cbd5e1;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.actions button,
+.actions select,
+.token-input {
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.token-input {
+  min-width: 220px;
+  cursor: text;
+}
+
+.sign-in-button {
+  background: #059669;
+  border-color: #059669;
+}
+
+.sign-in-button:hover:not(:disabled) {
+  background: #047857;
+}
+
+.sign-out-button {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.sign-out-button:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.apply-button {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.apply-button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.actions button:disabled,
+.actions select:disabled,
+.token-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actions button.active {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.panel {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #334155;
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.25);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tree-shell {
+  border: 1px solid #334155;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #020617;
+}
+
+.tree-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) 120px 180px;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  background: #111827;
+  border-bottom: 1px solid #374151;
+  font-weight: 600;
+}
+
+.tree-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) 120px 180px;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.7rem;
+  padding: 0 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tree-row:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.tree-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  background: #1d4ed8;
+  color: #eff6ff;
+  font-size: 0.8rem;
+}
+
+.tree-cell {
+  display: flex;
+  align-items: center;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.tree-label {
+  font-weight: 600;
+}
+
+.tree-meta {
+  color: #93c5fd;
+  font-size: 0.9rem;
+}
+
+.rename-input {
+  width: 100%;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  background: #111827;
+  color: #f9fafb;
+  padding: 0.45rem 0.65rem;
+}
+
+.operation-summary {
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: #0f172a;
+}
+
+.apply-message {
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  font-weight: 500;
+  animation: slideIn 0.3s ease-out;
+}
+
+.apply-message-success {
+  border: 1px solid #059669;
+  background: rgba(5, 150, 105, 0.1);
+  color: #86efac;
+}
+
+.apply-message-error {
+  border: 1px solid #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+  color: #fca5a5;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
