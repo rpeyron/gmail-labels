@@ -507,8 +507,74 @@ const LabelManager = ({ initialLabels }: Props) => {
 
   const filteredLabels = useMemo(() => filterLabels(labels, labelFilter), [labels, labelFilter]);
 
+  const getVisibleSelectableIds = (): string[] => {
+    const normalizedQuery = labelFilter.trim().toLowerCase();
+
+    const collect = (nodes: LabelNode[]): string[] =>
+      nodes.flatMap((node) => {
+        if (node.isSystem) {
+          return [];
+        }
+
+        const matchesQuery = !normalizedQuery || node.name.toLowerCase().includes(normalizedQuery);
+        const childMatches = (node.children ?? []).some((child) =>
+          child.name.toLowerCase().includes(normalizedQuery) || (normalizedQuery && hasMatchingDescendantPath(child, normalizedQuery)),
+        );
+
+        if (!normalizedQuery) {
+          return [node.id, ...collect(node.children ?? [])];
+        }
+
+        if (matchesQuery) {
+          return [node.id, ...collect(node.children ?? [])];
+        }
+
+        return childMatches ? collect(node.children ?? []) : [];
+      });
+
+    return Array.from(new Set(collect(filteredLabels)));
+  };
+
   const hasMatchingDescendantPath = (node: LabelNode, query: string): boolean =>
     (node.children ?? []).some((child) => child.name.toLowerCase().includes(query) || hasMatchingDescendantPath(child, query));
+
+  const toggleVisibleSources = async () => {
+    const visibleSelectableIds = getVisibleSelectableIds();
+    if (visibleSelectableIds.length === 0) {
+      return;
+    }
+
+    const existingVisibleIds = visibleSelectableIds.filter((id) => findNodeById(labels, id));
+    const allVisibleAreSelected = existingVisibleIds.every((id) => selected.includes(id));
+
+    const nextSelected = allVisibleAreSelected ? selected.filter((id) => !existingVisibleIds.includes(id)) : existingVisibleIds;
+    setSelected(nextSelected);
+
+    if (dataMode === 'demo' || !accessToken || existingVisibleIds.length === 0) {
+      return;
+    }
+
+    const refreshed = await Promise.all(
+      existingVisibleIds.map(async (id) => {
+        try {
+          const details = await fetchGmailLabelDetails(id, accessToken);
+          return { id, mailCount: details.messagesTotal ?? 0 };
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('(404)')) {
+            return null;
+          }
+          throw error;
+        }
+      }),
+    );
+
+    const validRefreshes = refreshed.filter((entry): entry is { id: string; mailCount: number } => entry !== null);
+
+    setLabels((current) => validRefreshes.reduce(
+      (nextLabels, { id, mailCount }) => updateNodeById(nextLabels, id, (node) => ({ ...node, mailCount })),
+      current,
+    ));
+  };
 
   const getSourceNames = (): string[] => {
     const findLabel = (nodes: LabelNode[], id: string, path: string[] = []): string | null => {
@@ -651,6 +717,21 @@ const LabelManager = ({ initialLabels }: Props) => {
     return parentPath ? `${parentPath}/${newName}` : newName;
   };
 
+  const getRenameSummary = (): string => {
+    const entries = Object.entries(renameMap).filter(([, value]) => (value ?? '').trim().length > 0);
+    if (entries.length === 0) {
+      return 'Rename source to target';
+    }
+
+    return entries
+      .map(([id, value]) => {
+        const currentPath = findLabelPath(id) ?? id;
+        const nextName = getRenamedLabelName(id, value.trim());
+        return `Rename ${currentPath} → ${nextName}`;
+      })
+      .join(' / ');
+  };
+
   const canRunOperation = plan.operations.length > 0 && plan.validationErrors.length === 0;
 
   const getProgressItemId = (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) =>
@@ -682,6 +763,37 @@ const LabelManager = ({ initialLabels }: Props) => {
 
     return [...plan.operations, ...sourceDeletionOperations];
   })();
+
+  const refreshAffectedLabelCounts = async (operations: Array<{ type: string; sourceId?: string; targetId: string; newName?: string }>) => {
+    const ids = [...new Set(
+      operations.flatMap((operation) => [operation.targetId, operation.sourceId].filter((id): id is string => Boolean(id))),
+    )].filter((id) => findNodeById(labels, id));
+
+    if (ids.length === 0 || dataMode === 'demo' || !accessToken) {
+      return;
+    }
+
+    const refreshed = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const details = await fetchGmailLabelDetails(id, accessToken);
+          return { id, mailCount: details.messagesTotal ?? 0 };
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('(404)')) {
+            return null;
+          }
+          throw error;
+        }
+      }),
+    );
+
+    const validRefreshes = refreshed.filter((entry): entry is { id: string; mailCount: number } => entry !== null);
+
+    setLabels((current) => validRefreshes.reduce(
+      (nextLabels, { id, mailCount }) => updateNodeById(nextLabels, id, (node) => ({ ...node, mailCount })),
+      current,
+    ));
+  };
 
   const executeOperation = async (operation: { type: string; sourceId?: string; targetId: string; newName?: string }) => {
     if (dataMode === 'demo') {
@@ -753,7 +865,7 @@ const LabelManager = ({ initialLabels }: Props) => {
           operation.type === 'merge'
             ? `${findLabelPath(operation.sourceId ?? '') ?? 'source'} → ${findLabelPath(operation.targetId) ?? 'target'}`
             : operation.type === 'rename'
-              ? 'Rename source to target'
+              ? `${findLabelPath(operation.targetId) ?? 'label'} → ${getRenamedLabelName(operation.targetId, operation.newName ?? '')}`
               : `Delete ${findLabelPath(operation.targetId) ?? 'label'}`;
 
         return {
@@ -794,6 +906,7 @@ const LabelManager = ({ initialLabels }: Props) => {
         } else {
           const refreshedLabels = await loadGmailLabels('gmail', accessToken);
           setLabels(refreshedLabels);
+          await refreshAffectedLabelCounts([operation]);
         }
 
         if (operation.type === 'delete') {
@@ -961,7 +1074,7 @@ const LabelManager = ({ initialLabels }: Props) => {
               {operationMode === 'merge' && getSourceNames().length > 0 && getTargetName()
                 ? `Merge ${getSourceNames().join(' / ')} → ${getTargetName()}`
                 : operationMode === 'rename' && Object.keys(renameMap).length > 0
-                  ? 'Rename source to target'
+                  ? getRenameSummary()
                   : operationMode === 'delete' && selected.length > 0
                     ? `Delete ${selected.map((id) => findLabelPath(id) ?? id).join(' / ')}`
                     : 'No operation configured'}
@@ -1078,7 +1191,22 @@ const LabelManager = ({ initialLabels }: Props) => {
           <div className="tree-header" role="row">
             <div className="tree-cell" style={{ gridColumn: '1 / 2' }}>Label</div>
             <div className="tree-cell" style={{ gridColumn: '2 / 3' }}>Mails</div>
-            <div className="tree-cell" style={{ gridColumn: '3 / 4' }}>Source</div>
+            <div
+              className="tree-cell tree-header-source-toggle"
+              style={{ gridColumn: '3 / 4' }}
+              role="button"
+              tabIndex={0}
+              onClick={toggleVisibleSources}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  toggleVisibleSources();
+                }
+              }}
+              aria-label="Toggle all visible selectable sources"
+            >
+              Source
+            </div>
             <div className="tree-cell" style={{ gridColumn: '4 / 5' }}>Target</div>
             <div className="tree-cell" style={{ gridColumn: '5 / 6' }}>Actions</div>
           </div>
