@@ -23,6 +23,18 @@ export type OperationResult = {
 const MAX_RETRIES = 3;
 const BATCH_SIZE = 1000;
 
+const getRetryDelayMs = async (response: Response, retryAttempt: number): Promise<number> => {
+  const retryAfterHeader = response.headers.get('Retry-After');
+  if (retryAfterHeader) {
+    const retryAfterSeconds = Number.parseFloat(retryAfterHeader);
+    if (!Number.isNaN(retryAfterSeconds)) {
+      return Math.max(0, retryAfterSeconds * 1000);
+    }
+  }
+
+  return 250 * 2 ** retryAttempt;
+};
+
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const makeGmailApiCall = async (
@@ -59,15 +71,18 @@ const makeGmailApiCall = async (
         const error = new Error(`Gmail API error (${response.status}): ${errorBody}`);
         if ([408, 429, 500, 502, 503, 504].includes(response.status) && attempt < MAX_RETRIES) {
           lastError = error;
-        } else {
-          throw error;
+          await wait(await getRetryDelayMs(response, attempt));
+          continue;
         }
-      } else {
-        if (response.status === 204) {
-          return null;
-        }
-        return response.json();
+
+        throw error;
       }
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      return response.json();
     } catch (error) {
       lastError = error;
       if (attempt === MAX_RETRIES || (error instanceof Error && error.message.startsWith('Gmail API error ('))) {

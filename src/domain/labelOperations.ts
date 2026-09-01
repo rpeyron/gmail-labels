@@ -2,6 +2,7 @@ export type LabelNode = {
   id: string;
   name: string;
   mailCount?: number;
+  isSystem?: boolean;
   children?: LabelNode[];
 };
 

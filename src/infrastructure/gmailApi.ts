@@ -2,6 +2,7 @@ export type GmailLabel = {
   id: string;
   name: string;
   mailCount?: number;
+  isSystem?: boolean;
   children?: GmailLabel[];
 };
 
@@ -87,6 +88,15 @@ const demoLabels: GmailLabel[] = [
   },
 ];
 
+const shouldHideTestLabel = (labelName: string): boolean => {
+  const normalized = labelName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized.split(/\s+/).some((segment) => segment === 'test' || segment === 'tests');
+};
+
 export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] => {
   const root: GmailLabel[] = [];
   const index = new Map<string, GmailLabel>();
@@ -110,10 +120,16 @@ export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] =
   };
 
   labels.forEach((label) => {
+    if (shouldHideTestLabel(label.name)) {
+      return;
+    }
+
     const segments = label.name.split('/').filter(Boolean).map((segment) => segment.trim());
     if (segments.length === 0) {
       return;
     }
+
+    const isSystemLabel = label.type === 'system';
 
     segments.forEach((segment, indexValue) => {
       const path = segments.slice(0, indexValue + 1).join('/').toLowerCase().replace(/[^a-z0-9/]+/g, '-');
@@ -122,6 +138,7 @@ export const normalizeGmailApiLabels = (labels: GmailApiLabel[]): GmailLabel[] =
       if (indexValue === segments.length - 1) {
         node.id = label.id;
         node.mailCount = label.messagesTotal;
+        node.isSystem = isSystemLabel;
       }
 
       if (indexValue > 0) {
@@ -152,7 +169,7 @@ const fetchGmailLabels = async (accessToken?: string): Promise<GmailApiLabel[]> 
     }
 
     const payload = (await response.json()) as GmailApiResponse;
-    return payload.labels ?? [];
+    return (payload.labels ?? []).filter((label) => !shouldHideTestLabel(label.name));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Unable to fetch Gmail labels')) {
       throw error;

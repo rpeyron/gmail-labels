@@ -134,6 +134,43 @@ describe('Gmail Operations', () => {
       expect(mockFetch.mock.calls[1][0]).toContain('pageToken=next-page');
     });
 
+    it('retries batchModify when the API rate-limits with Retry-After', async () => {
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'msg-1' }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'Retry-After': '0' }),
+          text: async () => 'rateLimitExceeded',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [] }),
+        });
+
+      const result = await applyMergeLabels({
+        sourceId: 'rate-limited-label',
+        targetId: 'target-label',
+        accessToken: 'token-abc',
+      });
+
+      expect(result.success).toBe(true);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
+      setTimeoutSpy.mockRestore();
+    });
+
     it('handles empty label gracefully', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

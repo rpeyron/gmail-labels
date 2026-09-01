@@ -3,12 +3,14 @@ import { buildLabelPlan, flattenLabelTree, type LabelNode, type OperationMode } 
 import { fetchGmailLabelDetails, fetchGmailUserProfile, loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
 import { applyMergeLabels, applyRenameLabel, deleteLabel } from '../../infrastructure/gmailOperations';
+import { getStoredClientId, setStoredClientId } from '../../shared/clientIdStorage';
 
 type TreeRowProps = {
   node: LabelNode;
   depth: number;
   selectedIds: string[];
   onToggleSelection: (id: string) => void;
+  onLabelClick: (id: string) => void;
   renameMap: Record<string, string>;
   onRename: (id: string, value: string) => void;
   targetLabelId: string;
@@ -29,6 +31,7 @@ const TreeGridRow = ({
   depth,
   selectedIds,
   onToggleSelection,
+  onLabelClick,
   renameMap,
   onRename,
   targetLabelId,
@@ -43,12 +46,13 @@ const TreeGridRow = ({
   isLocked,
   activeOperation,
 }: TreeRowProps) => {
+  const isSystemLabel = Boolean(node.isSystem);
   const isSource = selectedIds.includes(node.id);
   const isTarget = targetLabelId === node.id;
   const isInternal = (node.children?.length ?? 0) > 0;
   const hasChildLabels = isInternal;
-  const isRenameActive = node.mailCount !== undefined && node.mailCount !== 0;
-  const isDeleteActive = node.mailCount === 0 && !hasChildLabels;
+  const isRenameActive = !isSystemLabel && node.mailCount !== 0;
+  const isDeleteActive = !isSystemLabel && node.mailCount === 0 && !hasChildLabels;
   const currentRenameValue = renameMap[node.id] ?? node.name;
   const labelIndent = depth * 18;
   const hasTargetSelection = Boolean(targetLabelId);
@@ -61,8 +65,14 @@ const TreeGridRow = ({
 
   return (
     <>
-      <div className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''}`} role="row">
-        <div className="tree-cell tree-label-cell" style={{ paddingLeft: `${labelIndent}px` }} role="treeitem" aria-level={depth + 1}>
+      <div className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''} ${isSystemLabel ? 'tree-row-system' : ''}`} role="row">
+        <div
+          className={`tree-cell tree-label-cell ${isSystemLabel ? 'tree-label-cell-system' : ''}`}
+          style={{ paddingLeft: `${labelIndent}px` }}
+          role="treeitem"
+          aria-level={depth + 1}
+          onClick={() => onLabelClick(node.id)}
+        >
           {isInternal ? (
             <button type="button" className="tree-toggle" onClick={() => onToggleExpand(node.id)} aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}>
               {expandedIds[node.id] ? '▾' : '▸'}
@@ -79,7 +89,7 @@ const TreeGridRow = ({
             <input
               type="checkbox"
               checked={isSource}
-              disabled={isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
+              disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
               onChange={() => onToggleSelection(node.id)}
             />
             <span>Source</span>
@@ -91,7 +101,7 @@ const TreeGridRow = ({
               type="radio"
               name="target-label"
               checked={isTarget}
-              disabled={isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
+              disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
               onClick={() => onTargetSelect(node.id)}
             />
             <span>Target</span>
@@ -119,7 +129,7 @@ const TreeGridRow = ({
                   type="button"
                   className="action-button action-button-rename"
                   onClick={() => onRenameStart(node.id)}
-                  disabled={isLocked || Boolean(activeOperation && activeOperation !== 'rename')}
+                  disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'rename')}
                   aria-label={`Rename ${node.name}`}
                   title="Rename"
                 >
@@ -131,7 +141,7 @@ const TreeGridRow = ({
                   type="button"
                   className="action-button action-button-delete"
                   onClick={() => onDelete(node.id)}
-                  disabled={isLocked || Boolean(activeOperation && activeOperation !== 'delete')}
+                  disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'delete')}
                   aria-label={`Delete ${node.name}`}
                   title="Delete"
                 >
@@ -149,6 +159,7 @@ const TreeGridRow = ({
           depth={depth + 1}
           selectedIds={selectedIds}
           onToggleSelection={onToggleSelection}
+          onLabelClick={onLabelClick}
           renameMap={renameMap}
           onRename={onRename}
           targetLabelId={targetLabelId}
@@ -185,12 +196,8 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [operationProgress, setOperationProgress] = useState<Array<{ id: string; label: string; total: number; processed: number; status: 'running' | 'success' | 'error' }>>([]);
-  const [clientId, setClientId] = useState(() => {
-    if (typeof window === 'undefined') {
-      return '';
-    }
-    return window.localStorage.getItem('gmail-label-manager.client-id') ?? '';
-  });
+  const [clientId, setClientId] = useState(() => getStoredClientId());
+  const [googleConfigOpen, setGoogleConfigOpen] = useState(false);
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
@@ -210,6 +217,15 @@ const LabelManager = ({ initialLabels }: Props) => {
     populate(labels);
     setExpandedIds(initialExpanded);
   }, [labels]);
+
+  useEffect(() => {
+    if (dataMode === 'gmail' && !accessToken) {
+      setGoogleConfigOpen(true);
+      return;
+    }
+
+    setGoogleConfigOpen(false);
+  }, [dataMode, accessToken]);
 
   useEffect(() => {
     let active = true;
@@ -327,7 +343,7 @@ const LabelManager = ({ initialLabels }: Props) => {
     operation: { type: string; sourceId?: string; targetId: string; newName?: string },
     hydratedCounts?: Map<string, number>,
   ) => {
-    if (operation.type === 'delete') {
+    if (operation.type === 'delete' || operation.type === 'rename') {
       return 0;
     }
 
@@ -350,7 +366,8 @@ const LabelManager = ({ initialLabels }: Props) => {
   );
 
   const toggleSelection = (id: string) => {
-    if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
+    const targetNode = findNodeById(labels, id);
+    if (applying || activeOperation === 'rename' || activeOperation === 'delete' || targetNode?.isSystem) {
       return;
     }
 
@@ -450,7 +467,7 @@ const LabelManager = ({ initialLabels }: Props) => {
 
   const handleDeleteLabel = (id: string) => {
     const targetNode = flattened.find((label) => label.id === id);
-    if (!targetNode || (targetNode.mailCount ?? 0) > 0) {
+    if (!targetNode || targetNode.isSystem || (targetNode.mailCount ?? 0) > 0) {
       return;
     }
 
@@ -575,8 +592,9 @@ const LabelManager = ({ initialLabels }: Props) => {
     }
 
     try {
-      window.localStorage.setItem('gmail-label-manager.client-id', clientId.trim());
+      setStoredClientId(clientId);
       setApplying(true);
+      setApplyMessage(null);
       const token = await requestGoogleAccessToken(clientId);
       const profile = await fetchGmailUserProfile(token);
       setAccessToken(token);
@@ -586,6 +604,8 @@ const LabelManager = ({ initialLabels }: Props) => {
       setTimeout(() => setApplyMessage(null), 3000);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to sign in with Google.';
+      setAccessToken('');
+      setUserEmail('');
       setApplyMessage({ type: 'error', text: message });
     } finally {
       setApplying(false);
@@ -733,7 +753,7 @@ const LabelManager = ({ initialLabels }: Props) => {
           operation.type === 'merge'
             ? `${findLabelPath(operation.sourceId ?? '') ?? 'source'} → ${findLabelPath(operation.targetId) ?? 'target'}`
             : operation.type === 'rename'
-              ? `${findLabelPath(operation.targetId) ?? 'label'} → ${renameMap[operation.targetId] ?? 'new name'}`
+              ? 'Rename source to target'
               : `Delete ${findLabelPath(operation.targetId) ?? 'label'}`;
 
         return {
@@ -823,7 +843,14 @@ const LabelManager = ({ initialLabels }: Props) => {
   };
 
   if (loading) {
-    return <p className="panel">Loading labels…</p>;
+    return (
+      <main className="app-shell">
+        <div className="panel loading-panel" aria-live="polite" aria-busy="true">
+          <span className="loading-spinner" aria-hidden="true" />
+          <span>Loading Google labels…</span>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -835,52 +862,94 @@ const LabelManager = ({ initialLabels }: Props) => {
           <p className="hero-copy">Preview merges, rename labels, and keep a clear overview of your hierarchy before applying anything.</p>
         </div>
         <div className="actions">
-          <div className="account-picker">
-            <label className="account-picker-label" htmlFor="data-mode">Data source</label>
-            <select id="data-mode" value={dataMode} onChange={(event) => setDataMode(event.target.value as GmailDataMode)}>
-            <option value="demo">Demo mode</option>
-              <option value="gmail">Google account · OAuth</option>
-            </select>
-            <span className={`oauth-status ${accessToken ? 'oauth-status-connected' : ''}`}>
-              {dataMode === 'gmail' ? (accessToken ? 'OAuth connected' : 'OAuth sign-in required') : 'Local demo data'}
-            </span>
-            {dataMode === 'gmail' && accessToken && userEmail ? (
-              <span className="account-identity" title={userEmail}>
-                <span className="account-identity-icon" aria-hidden="true">◉</span>
-                {userEmail}
-              </span>
-            ) : null}
-          </div>
-          {dataMode === 'gmail' && !accessToken ? (
-            <>
-              <input
-                className="token-input"
-                value={clientId}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setClientId(value);
-                  window.localStorage.setItem('gmail-label-manager.client-id', value);
-                }}
-                placeholder="Enter Google OAuth client ID"
-                aria-label="Google OAuth client ID"
-                disabled={applying}
-              />
-              <button onClick={handleGoogleSignIn} disabled={applying} className="sign-in-button">
-                {applying ? 'Signing in…' : 'Sign in with Google'}
+          <div className="mode-panel">
+            <div className="source-toggle" role="tablist" aria-label="Select data source">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dataMode === 'demo'}
+                className={`source-toggle-option ${dataMode === 'demo' ? 'source-toggle-option-demo-active' : ''}`}
+                onClick={() => setDataMode('demo')}
+              >
+                Demo
               </button>
-            </>
-          ) : accessToken ? (
-            <button
-              className="sign-out-button"
-              onClick={() => {
-                setAccessToken('');
-                setUserEmail('');
-              }}
-              disabled={applying}
-            >
-              Sign out
-            </button>
-          ) : null}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dataMode === 'gmail'}
+                className={`source-toggle-option ${dataMode === 'gmail' ? 'source-toggle-option-google-active' : ''}`}
+                onClick={() => setDataMode('gmail')}
+              >
+                Google
+              </button>
+            </div>
+
+            {dataMode === 'gmail' ? (
+              <div className="connection-status-wrap">
+                <div className="connection-status-box">
+                  <span className={`oauth-status ${accessToken ? 'oauth-status-connected' : ''}`}>
+                    {accessToken ? 'Connected' : 'Not connected'}
+                  </span>
+
+                  {accessToken && userEmail ? (
+                    <span className="account-identity" title={userEmail}>
+                      <span className="account-identity-icon" aria-hidden="true">◉</span>
+                      {userEmail}
+                    </span>
+                  ) : null}
+
+                  {!accessToken ? (
+                    <button
+                      type="button"
+                      className="connection-action-button"
+                      onClick={() => setGoogleConfigOpen((current) => !current)}
+                      aria-expanded={googleConfigOpen}
+                      aria-controls="google-config-panel"
+                    >
+                      {googleConfigOpen ? 'Hide' : 'Connect'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="connection-action-button secondary"
+                      onClick={() => {
+                        setAccessToken('');
+                        setUserEmail('');
+                        setApplyMessage(null);
+                      }}
+                      disabled={applying}
+                    >
+                      Sign out
+                    </button>
+                  )}
+                </div>
+
+                {!accessToken && googleConfigOpen ? (
+                  <div id="google-config-panel" className="oauth-login-panel floating-panel">
+                    <label className="oauth-label" htmlFor="google-client-id">Client ID</label>
+                    <input
+                      id="google-client-id"
+                      className="token-input"
+                      value={clientId}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setClientId(value);
+                        setStoredClientId(value);
+                      }}
+                      placeholder="Google OAuth Client ID"
+                      aria-label="Google OAuth client ID"
+                      disabled={applying}
+                    />
+                    <button onClick={handleGoogleSignIn} disabled={applying} className="sign-in-button">
+                      {applying ? 'Connecting…' : 'Connect Google account'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <span className="oauth-status">Local demo</span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -892,10 +961,7 @@ const LabelManager = ({ initialLabels }: Props) => {
               {operationMode === 'merge' && getSourceNames().length > 0 && getTargetName()
                 ? `Merge ${getSourceNames().join(' / ')} → ${getTargetName()}`
                 : operationMode === 'rename' && Object.keys(renameMap).length > 0
-                  ? `Rename ${Object.entries(renameMap)
-                      .filter(([, value]) => value.trim())
-                      .map(([id, value]) => `${findLabelPath(id) ?? id} → ${value}`)
-                      .join(' ; ')}`
+                  ? 'Rename source to target'
                   : operationMode === 'delete' && selected.length > 0
                     ? `Delete ${selected.map((id) => findLabelPath(id) ?? id).join(' / ')}`
                     : 'No operation configured'}
@@ -936,7 +1002,7 @@ const LabelManager = ({ initialLabels }: Props) => {
                     <span className="operation-progress-label">{progress.label}</span>
                   </div>
                   <div className="operation-progress-content">
-                    <span className="operation-progress-meta">{progress.processed}/{progress.total} mails</span>
+                    {progress.total > 0 ? <span className="operation-progress-meta">{progress.processed}/{progress.total} mails</span> : null}
                     <div className="operation-progress-status">
                       {progress.status === 'running' && <span className="operation-progress-state">Running</span>}
                       {progress.status === 'success' && <span className="status-icon status-success" aria-label="Succeeded">✓</span>}
@@ -1032,11 +1098,20 @@ const LabelManager = ({ initialLabels }: Props) => {
                     toggleSelection(id);
                   })();
                 }}
+                onLabelClick={(id) => {
+                  void (async () => {
+                    if (!(await ensureLabelMailCount(id))) {
+                      return;
+                    }
+                    clearProgressForNewOperation();
+                  })();
+                }}
                 renameMap={renameMap}
                 onRename={updateRename}
                 targetLabelId={targetLabelId}
                 onTargetSelect={(id) => {
-                  if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
+                  const targetNode = findNodeById(labels, id);
+                  if (applying || activeOperation === 'rename' || activeOperation === 'delete' || targetNode?.isSystem) {
                     return;
                   }
                   void (async () => {
@@ -1051,7 +1126,8 @@ const LabelManager = ({ initialLabels }: Props) => {
                 }}
                 editingLabelId={editingLabelId}
                 onRenameStart={(id) => {
-                  if (applying || activeOperation === 'merge' || activeOperation === 'delete') {
+                  const targetNode = findNodeById(labels, id);
+                  if (applying || activeOperation === 'merge' || activeOperation === 'delete' || targetNode?.isSystem) {
                     return;
                   }
                   void (async () => {
@@ -1080,7 +1156,8 @@ const LabelManager = ({ initialLabels }: Props) => {
                   setActiveOperation(null);
                 }}
                 onDelete={(id) => {
-                  if (applying || activeOperation === 'merge' || activeOperation === 'rename') {
+                  const targetNode = findNodeById(labels, id);
+                  if (applying || activeOperation === 'merge' || activeOperation === 'rename' || targetNode?.isSystem) {
                     return;
                   }
                   void (async () => {

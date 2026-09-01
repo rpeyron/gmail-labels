@@ -28,4 +28,28 @@ describe('loadGmailLabels', () => {
     expect(labels[0].children?.[0].name).toBe('Projects');
     expect(labels[0].children?.[0].children?.[0].name).toBe('Launch');
   });
+
+  it('marks system labels as non-actionable', () => {
+    const labels = normalizeGmailApiLabels([
+      { id: 'INBOX', name: 'INBOX', type: 'system' },
+      { id: 'important', name: 'Important', type: 'system' },
+      { id: 'work', name: 'Work', type: 'user' },
+    ]);
+
+    expect(labels[0].isSystem).toBe(true);
+    expect(labels[1].isSystem).toBe(true);
+    expect(labels[2].isSystem).toBe(false);
+  });
+
+  it('hides Gmail labels created for tests', () => {
+    const labels = normalizeGmailApiLabels([
+      { id: 'inbox', name: 'INBOX', type: 'system' },
+      { id: 'test-1', name: 'Test', type: 'user' },
+      { id: 'my-test', name: 'My Test Label', type: 'user' },
+      { id: 'work', name: 'Work', type: 'user' },
+      { id: 'team-tests', name: 'Team/Tests', type: 'user' },
+    ]);
+
+    expect(labels.map((label) => label.name)).toEqual(['INBOX', 'Work']);
+  });
 });

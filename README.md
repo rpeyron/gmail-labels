@@ -53,7 +53,7 @@ npm run build
    - Go to **APIs & Services > Credentials**
    - Click **+ CREATE CREDENTIALS** > **OAuth 2.0 Client ID**
    - Choose "Web application"
-   - Add authorized JavaScript origins (e.g., `http://localhost:5173` for development)
+   - Add authorized JavaScript origins (e.g., http://localhost:5173` for development)
    - Save your **Client ID**
 
 ### Step 2: Use in the App
