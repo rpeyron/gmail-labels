@@ -25,30 +25,39 @@
 
   "requirements": {
     "delivery": {
-      "scope": "full product version",
+      "scope": "end-user Gmail label management UI",
       "priority": [
-        "complete Gmail label tree management",
-        "merge and rename workflows",
-        "dry-run preview before applying changes",
-        "robust handling for large mailboxes"
+        "Google account mode and demo mode parity",
+        "merge, rename, and delete workflows",
+        "safe operation summary and live validation",
+        "compact and clear label-tree UX"
       ]
     },
 
     "authentication": {
-      "method": "OAuth popup flow",
-      "principle": "use Gmail API only",
+      "method": "Google OAuth Client ID entry with browser session persistence",
+      "principle": "use Gmail API only for live data",
       "required-scopes": [
         "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
+      ],
+      "behavior": [
+        "persist client ID locally in browser storage",
+        "re-open the Google setup panel when needed",
+        "allow sign-out and reconnect flow"
       ]
     },
 
     "features:gmail-label-management": [
-      "display full Gmail label hierarchy",
-      "allow multi-selection for merging",
-      "allow renaming labels",
-      "preserve message history during merges",
-      "handle name collisions explicitly"
+      "display nested Gmail label hierarchy",
+      "allow source selection for visible, selectable labels",
+      "allow single target selection",
+      "rename labels inline with current label path in summary",
+      "delete labels only when they are empty and not system labels",
+      "block system labels from action flows",
+      "filter labels by name",
+      "hide test-only labels from Google results",
+      "refresh mail counts after affected operations"
     ],
 
     "demo-mode": {
@@ -56,114 +65,110 @@
       "purpose": "allow UI testing without a Google account",
       "behavior": [
         "load a built-in dataset of fake Gmail labels",
-        "make the demo mode selectable from the interface",
-        "keep preview and planning flows fully functional in demo mode",
-        "clearly indicate when the app is running without Google authentication"
+        "keep the UI fully interactive in demo mode",
+        "clearly indicate when the application is running without a live Google session"
       ]
     },
 
     "mode-parity": {
       "shared-behavior": [
-        "apply the same operation ordering, source cleanup, progress tracking, and selection reset in demo and Google account modes",
-        "process the next operation only after the previous operation succeeds",
-        "refresh labels after each successful Google account operation"
+        "use a common operation model across demo and Google modes",
+        "refresh state after successful operations",
+        "keep operation summary and validation in sync",
+        "ignore deleted labels when Gmail returns a 404 during refresh"
       ],
       "demo-mode": "simulate label and mail-count updates locally",
-      "google-account-mode": "execute Gmail API operations and use refreshed API values as the displayed source of truth",
-      "prohibited": "never use the demo dataset or local demo mutation as the displayed result of a Google account operation"
+      "google-account-mode": "execute Gmail API operations and refresh label data from the API",
+      "prohibited": "never display stale label data from a deleted Gmail label"
     },
 
     "ui": {
-      "style": "minimalistic",
+      "style": "compact minimalistic",
       "interface": {
-        "layout": "single unified tree with operation summary at top",
+        "layout": "single unified tree with a compact operation summary and top-right control panel",
         "components": [
-          "operation-summary-top: displays sources, target, and operation count",
-          "label-hierarchy: single tree with 5 columns (Label, Mails, Source, Target, Actions)",
-          "source-selection: multiple checkboxes for selecting source labels",
-          "target-selection: single radio button for selecting target label",
-          "actions-column: inline rename and delete action buttons with icons",
-          "tree-toolbar: expand all and collapse all controls",
-          "validation-errors: displays any validation errors"
+          "mode-toggle: Demo and Google with strong active state colors",
+          "connection-status-box: shows connection state and user identity",
+          "google-popup: floating configuration panel anchored to the Google button",
+          "operation-summary-top: displays source, target, and operation direction",
+          "label-hierarchy: tree with Label, Mails, Source, Target, and Actions columns",
+          "source-selection: visible and selectable labels can be selected with one click",
+          "target-selection: single radio button for the target label",
+          "actions-column: inline rename and delete actions",
+          "tree-toolbar: filter, expand all, collapse all, and refresh controls",
+          "validation-errors: displays invalid operation states"
         ]
       },
       "tree-view": [
         "indentation based on depth",
-        "virtualization required",
-        "5 columns: Label, Mails count, Source checkbox, Target radio, Actions",
+        "5 columns: Label, Mails, Source, Target, Actions",
         "label icon displayed before each label name",
-        "expand/collapse controls for each node and global expand all / collapse all",
-        "multi-selection for sources",
-        "single selection for target",
-        "path display using / separator (e.g., 'Projects/Ongoing')",
-        "delete action only enabled when mailCount is 0"
+        "expand/collapse controls for each node and global expand/collapse",
+        "source selection respects the active filter and excludes system labels",
+        "delete action is disabled for system labels and non-empty labels",
+        "path display uses / separators",
+        "loading spinner displayed while Gmail labels are fetched"
       ],
       "dry-run": [
         "show planned operations",
-        "no side effects",
-        "default preview mode before applying changes"
+        "no side effects before confirmation",
+        "display progress for the active operation"
       ]
     },
 
     "logic": {
       "gmail-api": [
-        "use official Gmail API only",
-        "merging moves messages to target label",
-        "no automatic deletion",
-        "log all operations without sensitive Gmail content",
-        "require explicit confirmation before modifying messages",
-        "paginate message listing and process message IDs with Gmail batchModify in batches of at most 1000",
-        "retry only transient API failures with bounded exponential backoff",
-        "verify merge, rename, and delete results through follow-up Gmail API reads"
+        "use the official Gmail API only for live data",
+        "keep label tree updates consistent with the latest Gmail response",
+        "refresh the affected mail counts after each successful operation",
+        "retry transient failures when appropriate",
+        "handle stale deleted labels gracefully by ignoring 404 responses"
       ],
       "collision-handling": [
-        "handle name collisions explicitly",
-        "require manual resolution or a user-provided alternative name"
+        "show the real paths in the summary before execution",
+        "keep rename target names aligned with the actual label being renamed"
       ]
     },
 
     "robustness": {
       "scale": [
-        "support >100k messages",
-        "support thousands of labels"
+        "support practical Gmail label trees in normal mailbox usage",
+        "handle label filtering and bulk selection without layout disruption"
       ],
       "performance": [
-        "batching",
-        "pagination",
-        "retry on API errors",
-        "avoid loading all messages at once",
-        "progress bar for long operations",
-        "background workers for heavy tasks"
+        "batch refresh of affected labels",
+        "avoid unnecessary Gmail detail requests for deleted or system labels",
+        "keep progress feedback visible during execution"
       ]
     },
 
     "tests": {
       "unit": [
-        "mock Gmail API",
-        "test collisions, empty labels, missing labels",
-        "test dry-run mode"
+        "check normalization of Gmail labels",
+        "verify system label protection",
+        "verify test-label filtering",
+        "verify auth errors and API responses"
       ],
       "integration": [
-        "test UI with RTL or Playwright",
-        "test large datasets",
-        "test batching and pagination"
+        "exercise demo and Google modes",
+        "validate operation summaries",
+        "validate refresh flows after actions"
       ],
-      "coverage": 85
+      "coverage": "project-level regression checks maintained"
     },
 
     "safety": [
       "never log sensitive Gmail data",
-      "require explicit confirmation before modifying messages",
-      "handle quota errors gracefully",
-      "abort cleanly on critical errors"
+      "require explicit user intent before applying label changes",
+      "gracefully skip deleted labels when Gmail returns missing-entity responses",
+      "keep system labels read-only"
     ]
   },
 
   "goals": [
-    "deliver a robust Gmail label management tool",
-    "ensure scalability for enterprise-level mailboxes",
-    "maintain clean architecture and strict TypeScript typing",
-    "provide a minimalistic and efficient React UI",
-    "guarantee reliability through extensive automated testing"
+    "deliver a robust Gmail label management experience",
+    "keep the UI compact and clear for everyday operations",
+    "maintain safe Google-account workflows with reliable refreshes",
+    "ensure documentation and behavior stay aligned with the shipped product"
   ]
 }

@@ -1,30 +1,43 @@
-# Gmail Labels
+# Gmail Label Manager
 
-A Vite + React + TypeScript application for managing Gmail labels safely.
+A Vite + React + TypeScript app for safely previewing and applying Gmail label operations.
 
-## Features
+## What the app does
 
-- View a unified label hierarchy with dedicated Source and Target columns
-- Expand, collapse, and expand all nodes in the hierarchy from the tree UI
-- Select multiple source labels via checkboxes
-- Select a single target label via radio button
-- Preview source paths and target path in the summary at top
-- Rename labels using inline action buttons with a pencil icon
-- Delete labels only when they have 0 messages
-- Preview planned changes in dry-run mode
-- Validate merge targets and missing labels
-- Real Gmail API integration with OAuth authentication
-- Demo mode for testing without a Google account
+- Manage Gmail labels in a single tree view
+- Switch between a demo dataset and a real Google account
+- Filter labels by name
+- Select all visible, selectable labels from the Source column with one click
+- Merge selected labels into a target label
+- Rename labels inline
+- Delete empty labels only
+- Prevent actions on system labels
+- Hide test-only labels from Google account data
+- Show a loading spinner while Gmail labels are being fetched
+- Persist the Google OAuth client ID locally in the browser
+- Refresh mail counts after label operations and skip deleted labels safely
 
-## Interface
+## Current UI behavior
 
-The application features a single unified tree with:
-- **Label column**: Shows the full label hierarchy with depth indentation and a label icon
-- **Mails column**: Displays the message count for each label
-- **Source column**: Checkbox to select labels as sources for merge operations
-- **Target column**: Radio button to select a single target label for merging
-- **Actions column**: Rename and delete buttons with icon-based actions
-- **Operation Summary** (top): Shows sources paths (with / separator), target path, and operation count
+- Compact mode toggle: Demo / Google
+- Google auth status is displayed in the connection box
+- A floating setup panel opens from the Google button when needed
+- The active mode is visually emphasized with red for Demo and green for Google
+- The operation summary shows the real selected label paths
+- The tree remains clean and compact without outer frames around the operation block or label tree
+
+## Features checklist
+
+- Unified label tree with nested hierarchy
+- Label count display
+- Source selection by checkbox
+- Target selection by radio
+- Rename and delete actions
+- Operation summary at top
+- Validation messages for invalid operations
+- Demo mode and live Google mode
+- Safe handling of Gmail API 404s for deleted labels
+- Google API transient-error handling and refresh logic
 
 ## Development
 
@@ -33,40 +46,43 @@ npm install
 npm run dev
 ```
 
-## Build
+## Production build
 
 ```bash
 npm run build
 ```
 
-## Using Gmail Account Mode
+## Tests
 
-### Step 1: Get a Google OAuth Client ID
+```bash
+npm test
+```
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Gmail API:
-   - Go to **APIs & Services > Enabled APIs & services**
-   - Click **+ ENABLE APIS AND SERVICES**
-   - Search for "Gmail API" and enable it
-4. Create an OAuth 2.0 credential:
-   - Go to **APIs & Services > Credentials**
-   - Click **+ CREATE CREDENTIALS** > **OAuth 2.0 Client ID**
-   - Choose "Web application"
-   - Add authorized JavaScript origins (e.g., http://localhost:5173` for development)
-   - Save your **Client ID**
+## Using Google account mode
 
-### Step 2: Use in the App
+### 1) Create a Google OAuth client ID
 
-1. Select "Google account" mode from the dropdown
-2. Paste your OAuth Client ID into the field
-3. Click "Sign in with Google"
-4. Authorize the app to access your Gmail labels
-5. Preview your changes and apply them when ready
+1. Open the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Enable the Gmail API
+4. Create an OAuth 2.0 Client ID
+5. Choose a Web application
+6. Add your local origin, for example: `http://localhost:5173`
+7. Copy the generated Client ID
+
+### 2) Use it in the app
+
+1. Select the Google mode
+2. Paste the Client ID in the popup field
+3. Click Connect Google account
+4. Authorize the app to access Gmail labels
+5. Review the planned changes and run the operation when ready
 
 ## Notes
 
-- The app requires `gmail.labels` and `gmail.modify` OAuth scopes
-- Changes are applied only after explicit user confirmation
-- In demo mode, no Google account is required and all data is simulated
-- The app uses batching for large label operations to respect API limits
+- The app uses the Gmail API with OAuth for real label operations
+- The required scopes are `gmail.labels` and `gmail.modify`
+- In demo mode, the app uses a built-in dataset and does not require a Google account
+- System labels are intentionally disabled and cannot be edited
+- Test labels are filtered out to avoid noise in the Gmail tree
+- Deleted labels are skipped during refresh if Gmail returns a 404
