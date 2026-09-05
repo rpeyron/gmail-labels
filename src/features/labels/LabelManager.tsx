@@ -387,7 +387,7 @@ const LabelManager = ({ initialLabels }: Props) => {
 
     setOperationMode('merge');
     setActiveOperation('merge');
-    setSelected(matchingIds);
+    setSelected((current) => Array.from(new Set([...current, ...matchingIds])));
     clearProgressForNewOperation();
     await refreshMailCounts(matchingIds);
   };
@@ -399,6 +399,11 @@ const LabelManager = ({ initialLabels }: Props) => {
     }
 
     const existingVisibleIds = visibleSelectableIds.filter((id) => findNodeById(labels, id));
+    if (!labelFilter.trim() && selected.length > 0) {
+      setSelected([]);
+      return;
+    }
+
     const allVisibleAreSelected = existingVisibleIds.every((id) => selected.includes(id));
 
     const nextSelected = allVisibleAreSelected ? selected.filter((id) => !existingVisibleIds.includes(id)) : existingVisibleIds;

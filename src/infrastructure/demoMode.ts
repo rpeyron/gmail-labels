@@ -48,7 +48,7 @@ export const demoLabels: LabelNode[] = [
     id: 'demo-empty-projects',
     name: 'Empty projects',
     mailCount: 0,
-    children: [{ id: 'demo-empty-projects-archived', name: 'Archived', mailCount: 0 }],
+    children: [{ id: 'demo-empty-projects-archived', name: 'Archive', mailCount: 0 }],
   },
   {
     id: 'demo-empty-ops',

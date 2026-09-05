@@ -66,7 +66,10 @@
     "features:gmail-label-management": [
       "display nested Gmail label hierarchy",
       "allow source selection for visible, selectable labels",
+      "with an empty filter, clear all source selections when the Source header is activated while any source is selected",
+      "with an empty filter, select all visible selectable labels when the Source header is activated with no sources selected",
       "double-click a label to select every non-system label with exactly the same name",
+      "keep existing source selections when double-click selection adds labels with the same name",
       "allow single target selection",
       "rename labels inline with current label path in summary",
       "delete labels only when they are empty and not system labels",
@@ -124,6 +127,7 @@
         "label icon displayed before each label name",
         "expand/collapse controls for each node and global expand/collapse",
         "source selection respects the active filter and excludes system labels",
+        "with an empty filter, Source header toggles between clearing all sources and selecting all visible selectable labels",
         "double-click selection uses exact label names, excludes system labels, and refreshes the newly selected mail counts",
         "Mails header refreshes counts for rendered rows only, respecting the active filter and expanded branches",
         "delete action is disabled for system labels and non-empty labels",

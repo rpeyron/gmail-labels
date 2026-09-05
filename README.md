@@ -8,7 +8,9 @@ A Vite + React + TypeScript app for safely previewing and applying Gmail label o
 - Switch between a demo dataset and a real Google account
 - Filter labels by name
 - Select all visible, selectable labels from the Source column with one click
+- With an empty filter, clicking the Source header clears all current source selections; clicking it again selects all visible selectable labels
 - Double-click a label to select every non-system label with exactly the same name
+- Double-click selection is additive and keeps existing source selections
 - Preview the planned task rows before running operations
 - Merge selected labels into a target label
 - Rename labels inline
