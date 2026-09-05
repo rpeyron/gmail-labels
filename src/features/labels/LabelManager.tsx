@@ -3,181 +3,11 @@ import { buildLabelPlan, flattenLabelTree, type LabelNode, type OperationMode } 
 import { fetchGmailLabelDetails, fetchGmailUserProfile, loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
 import { applyMergeLabels, applyRenameLabel, deleteLabel } from '../../infrastructure/gmailOperations';
+import { applyDemoOperation, removeDemoNode } from '../../infrastructure/demoMode';
+import LabelTreeRow from './LabelTreeRow';
+import DataSourcePanel from './DataSourcePanel';
+import LabelTreeToolbar from './LabelTreeToolbar';
 import { getStoredClientId, setStoredClientId } from '../../shared/clientIdStorage';
-
-type TreeRowProps = {
-  node: LabelNode;
-  depth: number;
-  selectedIds: string[];
-  onToggleSelection: (id: string) => void;
-  onLabelClick: (id: string) => void;
-  renameMap: Record<string, string>;
-  onRename: (id: string, value: string) => void;
-  targetLabelId: string;
-  onTargetSelect: (id: string) => void;
-  editingLabelId: string | null;
-  onRenameStart: (id: string) => void;
-  onRenameEnd: (id: string) => void;
-  onDelete: (id: string) => void;
-  expandedIds: Record<string, boolean>;
-  onToggleExpand: (id: string) => void;
-  labelFilter: string;
-  isLocked: boolean;
-  activeOperation: OperationMode | null;
-};
-
-const TreeGridRow = ({
-  node,
-  depth,
-  selectedIds,
-  onToggleSelection,
-  onLabelClick,
-  renameMap,
-  onRename,
-  targetLabelId,
-  onTargetSelect,
-  editingLabelId,
-  onRenameStart,
-  onRenameEnd,
-  onDelete,
-  expandedIds,
-  onToggleExpand,
-  labelFilter,
-  isLocked,
-  activeOperation,
-}: TreeRowProps) => {
-  const isSystemLabel = Boolean(node.isSystem);
-  const isSource = selectedIds.includes(node.id);
-  const isTarget = targetLabelId === node.id;
-  const isInternal = (node.children?.length ?? 0) > 0;
-  const hasChildLabels = isInternal;
-  const isRenameActive = !isSystemLabel && node.mailCount !== 0;
-  const isDeleteActive = !isSystemLabel && node.mailCount === 0 && !hasChildLabels;
-  const currentRenameValue = renameMap[node.id] ?? node.name;
-  const labelIndent = depth * 18;
-  const hasTargetSelection = Boolean(targetLabelId);
-  const normalizedFilter = labelFilter.trim().toLowerCase();
-  const hasMatchingDescendantPath = (currentNode: LabelNode, query: string): boolean =>
-    (currentNode.children ?? []).some((child) => child.name.toLowerCase().includes(query) || hasMatchingDescendantPath(child, query));
-  const rowMatchesFilter = !normalizedFilter || node.name.toLowerCase().includes(normalizedFilter);
-  const hasMatchingDescendant = !normalizedFilter ? false : hasMatchingDescendantPath(node, normalizedFilter);
-  const isFilterParentDimmed = Boolean(normalizedFilter) && !rowMatchesFilter && hasMatchingDescendant;
-
-  return (
-    <>
-      <div className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''} ${isSystemLabel ? 'tree-row-system' : ''}`} role="row">
-        <div
-          className={`tree-cell tree-label-cell ${isSystemLabel ? 'tree-label-cell-system' : ''}`}
-          style={{ paddingLeft: `${labelIndent}px` }}
-          role="treeitem"
-          aria-level={depth + 1}
-          onClick={() => onLabelClick(node.id)}
-        >
-          {isInternal ? (
-            <button type="button" className="tree-toggle" onClick={() => onToggleExpand(node.id)} aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}>
-              {expandedIds[node.id] ? '▾' : '▸'}
-            </button>
-          ) : (
-            <span className="tree-toggle tree-toggle-leaf">•</span>
-          )}
-          <span className="tree-label-icon" aria-hidden="true">🏷️</span>
-          <span className="tree-label">{node.name}</span>
-        </div>
-        <div className="tree-cell tree-meta" role="cell">{node.mailCount === undefined ? '—' : `${node.mailCount} mails`}</div>
-        <div className="tree-cell" role="cell">
-          <label className={`tree-checkbox ${isSource ? 'is-selected' : ''}`}>
-            <input
-              type="checkbox"
-              checked={isSource}
-              disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
-              onChange={() => onToggleSelection(node.id)}
-            />
-            <span>Source</span>
-          </label>
-        </div>
-        <div className="tree-cell" role="cell">
-          <label className={`tree-radio ${isTarget ? 'is-selected' : ''} ${hasTargetSelection && !isTarget ? 'is-dimmed' : ''}`}>
-            <input
-              type="radio"
-              name="target-label"
-              checked={isTarget}
-              disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'merge')}
-              onClick={() => onTargetSelect(node.id)}
-            />
-            <span>Target</span>
-          </label>
-        </div>
-        <div className="tree-cell tree-actions-cell" role="cell">
-          {editingLabelId === node.id ? (
-            <input
-              className="rename-input"
-              value={currentRenameValue}
-              onChange={(event) => onRename(node.id, event.target.value)}
-              onBlur={() => onRenameEnd(node.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  onRenameEnd(node.id);
-                }
-              }}
-              autoFocus
-              placeholder="New name"
-            />
-          ) : (
-            <>
-              {isRenameActive && (
-                <button
-                  type="button"
-                  className="action-button action-button-rename"
-                  onClick={() => onRenameStart(node.id)}
-                  disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'rename')}
-                  aria-label={`Rename ${node.name}`}
-                  title="Rename"
-                >
-                  <span aria-hidden="true">✏️</span>
-                </button>
-              )}
-              {isDeleteActive && (
-                <button
-                  type="button"
-                  className="action-button action-button-delete"
-                  onClick={() => onDelete(node.id)}
-                  disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'delete')}
-                  aria-label={`Delete ${node.name}`}
-                  title="Delete"
-                >
-                  <span aria-hidden="true">🗑️</span>
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      {isInternal && expandedIds[node.id] && (node.children ?? []).map((child) => (
-        <TreeGridRow
-          key={child.id}
-          node={child}
-          depth={depth + 1}
-          selectedIds={selectedIds}
-          onToggleSelection={onToggleSelection}
-          onLabelClick={onLabelClick}
-          renameMap={renameMap}
-          onRename={onRename}
-          targetLabelId={targetLabelId}
-          onTargetSelect={onTargetSelect}
-          editingLabelId={editingLabelId}
-          onRenameStart={onRenameStart}
-          onRenameEnd={onRenameEnd}
-          onDelete={onDelete}
-          expandedIds={expandedIds}
-          onToggleExpand={onToggleExpand}
-          labelFilter={labelFilter}
-          isLocked={isLocked}
-          activeOperation={activeOperation}
-        />
-      ))}
-    </>
-  );
-};
 
 type Props = {
   initialLabels?: LabelNode[];
@@ -415,55 +245,6 @@ const LabelManager = ({ initialLabels }: Props) => {
       }
       return node;
     });
-
-  const hasDescendantId = (nodes: LabelNode[], id: string): boolean =>
-    nodes.some((node) => node.id === id || hasDescendantId(node.children ?? [], id));
-
-  const removeNodeById = (nodes: LabelNode[], id: string): LabelNode[] =>
-    nodes
-      .filter((node) => node.id !== id)
-      .map((node) => ({
-        ...node,
-        children: (node.children ?? []).length > 0 ? removeNodeById(node.children ?? [], id) : undefined,
-      }))
-      .filter((node) => node.children !== undefined || node.id !== id);
-
-  const applyDemoOperation = (nodes: LabelNode[], operation: { type: string; sourceId?: string; targetId: string; newName?: string }): LabelNode[] => {
-    if (operation.type === 'rename') {
-      return updateNodeById(nodes, operation.targetId, (node) => ({
-        ...node,
-        name: operation.newName ?? node.name,
-      }));
-    }
-
-    if (operation.type === 'delete') {
-      return removeNodeById(nodes, operation.targetId);
-    }
-
-    if (operation.type === 'merge' && operation.sourceId) {
-      const sourceId = operation.sourceId;
-      const sourceNode = findNodeById(nodes, operation.sourceId);
-      const targetNode = findNodeById(nodes, operation.targetId);
-      if (!sourceNode || !targetNode) {
-        return nodes;
-      }
-
-      const sourceChildren = sourceNode.children ?? [];
-      const sourceHasChildren = sourceChildren.length > 0;
-      const sourceIsParentOfOtherLabels = hasDescendantId(nodes, operation.sourceId) && sourceHasChildren;
-
-      return updateNodeById(nodes, operation.targetId, (node) => ({
-        ...node,
-        mailCount: (node.mailCount ?? 0) + (sourceNode.mailCount ?? 0),
-      })).map((node) =>
-        node.id === sourceId || hasDescendantId(node.children ?? [], sourceId)
-          ? updateNodeById([node], sourceId, (source) => ({ ...source, mailCount: 0 }))[0]
-          : node,
-      );
-    }
-
-    return nodes;
-  };
 
   const handleDeleteLabel = (id: string) => {
     const targetNode = flattened.find((label) => label.id === id);
@@ -899,7 +680,7 @@ const LabelManager = ({ initialLabels }: Props) => {
 
         if (dataMode === 'demo') {
           if (operation.type === 'delete') {
-            setLabels((current) => removeNodeById(current, operation.targetId));
+            setLabels((current) => removeDemoNode(current, operation.targetId));
           } else {
             setLabels((current) => applyDemoOperation(current, operation));
           }
@@ -975,94 +756,26 @@ const LabelManager = ({ initialLabels }: Props) => {
           <p className="hero-copy">Preview merges, rename labels, and keep a clear overview of your hierarchy before applying anything.</p>
         </div>
         <div className="actions">
-          <div className="mode-panel">
-            <div className="source-toggle" role="tablist" aria-label="Select data source">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dataMode === 'demo'}
-                className={`source-toggle-option ${dataMode === 'demo' ? 'source-toggle-option-demo-active' : ''}`}
-                onClick={() => setDataMode('demo')}
-              >
-                Demo
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dataMode === 'gmail'}
-                className={`source-toggle-option ${dataMode === 'gmail' ? 'source-toggle-option-google-active' : ''}`}
-                onClick={() => setDataMode('gmail')}
-              >
-                Google
-              </button>
-            </div>
-
-            {dataMode === 'gmail' ? (
-              <div className="connection-status-wrap">
-                <div className="connection-status-box">
-                  <span className={`oauth-status ${accessToken ? 'oauth-status-connected' : ''}`}>
-                    {accessToken ? 'Connected' : 'Not connected'}
-                  </span>
-
-                  {accessToken && userEmail ? (
-                    <span className="account-identity" title={userEmail}>
-                      <span className="account-identity-icon" aria-hidden="true">◉</span>
-                      {userEmail}
-                    </span>
-                  ) : null}
-
-                  {!accessToken ? (
-                    <button
-                      type="button"
-                      className="connection-action-button"
-                      onClick={() => setGoogleConfigOpen((current) => !current)}
-                      aria-expanded={googleConfigOpen}
-                      aria-controls="google-config-panel"
-                    >
-                      {googleConfigOpen ? 'Hide' : 'Connect'}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="connection-action-button secondary"
-                      onClick={() => {
-                        setAccessToken('');
-                        setUserEmail('');
-                        setApplyMessage(null);
-                      }}
-                      disabled={applying}
-                    >
-                      Sign out
-                    </button>
-                  )}
-                </div>
-
-                {!accessToken && googleConfigOpen ? (
-                  <div id="google-config-panel" className="oauth-login-panel floating-panel">
-                    <label className="oauth-label" htmlFor="google-client-id">Client ID</label>
-                    <input
-                      id="google-client-id"
-                      className="token-input"
-                      value={clientId}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setClientId(value);
-                        setStoredClientId(value);
-                      }}
-                      placeholder="Google OAuth Client ID"
-                      aria-label="Google OAuth client ID"
-                      disabled={applying}
-                    />
-                    <button onClick={handleGoogleSignIn} disabled={applying} className="sign-in-button">
-                      {applying ? 'Connecting…' : 'Connect Google account'}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <span className="oauth-status">Local demo</span>
-            )}
-          </div>
+          <DataSourcePanel
+            dataMode={dataMode}
+            accessToken={accessToken}
+            userEmail={userEmail}
+            applying={applying}
+            clientId={clientId}
+            googleConfigOpen={googleConfigOpen}
+            onDataModeChange={setDataMode}
+            onClientIdChange={(value) => {
+              setClientId(value);
+              setStoredClientId(value);
+            }}
+            onConfigToggle={() => setGoogleConfigOpen((current) => !current)}
+            onSignIn={handleGoogleSignIn}
+            onSignOut={() => {
+              setAccessToken('');
+              setUserEmail('');
+              setApplyMessage(null);
+            }}
+          />
         </div>
       </header>
 
@@ -1151,42 +864,15 @@ const LabelManager = ({ initialLabels }: Props) => {
       </section>
 
       <section className="panel">
-        <div className="panel-header">
-          <div className="tree-toolbar">
-            <div className="tree-toolbar-left">
-              <div className="label-filter-wrap">
-                <input
-                  className="label-filter-input"
-                  type="text"
-                  value={labelFilter}
-                  onChange={(event) => setLabelFilter(event.target.value)}
-                  placeholder="Filter labels"
-                  aria-label="Filter labels"
-                />
-                {labelFilter && (
-                  <button
-                    type="button"
-                    className="label-filter-clear"
-                    onClick={() => setLabelFilter('')}
-                    aria-label="Clear filter"
-                    title="Clear filter"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              <button type="button" className="mini-button" onClick={expandAll}>
-                Expand all
-              </button>
-              <button type="button" className="mini-button" onClick={collapseAll}>
-                Collapse all
-              </button>
-              <button type="button" className="mini-button" onClick={refreshLabels} disabled={applying || refreshingLabels}>
-                {refreshingLabels ? 'Refreshing…' : 'Refresh labels'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <LabelTreeToolbar
+          labelFilter={labelFilter}
+          refreshingLabels={refreshingLabels}
+          applying={applying}
+          onFilterChange={setLabelFilter}
+          onExpandAll={expandAll}
+          onCollapseAll={collapseAll}
+          onRefresh={refreshLabels}
+        />
         <div className="tree-shell">
           <div className="tree-header" role="row">
             <div className="tree-cell" style={{ gridColumn: '1 / 2' }}>Label</div>
@@ -1212,7 +898,7 @@ const LabelManager = ({ initialLabels }: Props) => {
           </div>
           <div className="tree-grid" role="tree">
             {filteredLabels.map((label) => (
-              <TreeGridRow
+              <LabelTreeRow
                 key={label.id}
                 node={label}
                 depth={0}

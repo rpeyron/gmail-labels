@@ -22,71 +22,11 @@ export type GmailUserProfile = {
   emailAddress: string;
 };
 
+import { demoLabels } from './demoMode';
+
 type GmailApiResponse = {
   labels?: GmailApiLabel[];
 };
-
-const demoLabels: GmailLabel[] = [
-  {
-    id: 'demo-projects',
-    name: 'Projects',
-    mailCount: 184,
-    children: [
-      {
-        id: 'demo-projects-archive',
-        name: 'Archive',
-        mailCount: 76,
-        children: [{ id: 'demo-projects-archive-2024', name: '2024', mailCount: 32 }],
-      },
-      {
-        id: 'demo-projects-ongoing',
-        name: 'Ongoing',
-        mailCount: 108,
-        children: [{ id: 'demo-projects-ongoing-alpha', name: 'Alpha', mailCount: 41 }],
-      },
-    ],
-  },
-  {
-    id: 'demo-personal',
-    name: 'Personal',
-    mailCount: 96,
-    children: [
-      {
-        id: 'demo-personal-travel',
-        name: 'Travel',
-        mailCount: 53,
-        children: [{ id: 'demo-personal-travel-2025', name: '2025', mailCount: 19 }],
-      },
-      {
-        id: 'demo-personal-family',
-        name: 'Family',
-        mailCount: 43,
-      },
-    ],
-  },
-  {
-    id: 'demo-admin',
-    name: 'Admin',
-    mailCount: 67,
-    children: [{ id: 'demo-admin-invoices', name: 'Invoices', mailCount: 21 }],
-  },
-  {
-    id: 'demo-empty-projects',
-    name: 'Empty projects',
-    mailCount: 0,
-    children: [{ id: 'demo-empty-projects-archived', name: 'Archived', mailCount: 0 }],
-  },
-  {
-    id: 'demo-empty-ops',
-    name: 'Ops backlog',
-    mailCount: 0,
-  },
-  {
-    id: 'demo-empty-archive',
-    name: 'Archive room',
-    mailCount: 0,
-  },
-];
 
 const shouldHideTestLabel = (labelName: string): boolean => {
   const normalized = labelName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
