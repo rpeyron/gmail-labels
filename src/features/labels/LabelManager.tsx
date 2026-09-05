@@ -25,7 +25,7 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [operationProgress, setOperationProgress] = useState<Array<{ id: string; label: string; total: number; processed: number; status: 'running' | 'success' | 'error' }>>([]);
+  const [operationProgress, setOperationProgress] = useState<Array<{ id: string; label: string; total: number; processed: number; status: 'pending' | 'running' | 'success' | 'error' }>>([]);
   const [clientId, setClientId] = useState(() => getStoredClientId());
   const [googleConfigOpen, setGoogleConfigOpen] = useState(false);
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -33,6 +33,8 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [labelFilter, setLabelFilter] = useState('');
   const [refreshingLabels, setRefreshingLabels] = useState(false);
+  const [refreshingMailCounts, setRefreshingMailCounts] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   useEffect(() => {
     const initialExpanded: Record<string, boolean> = {};
@@ -319,6 +321,77 @@ const LabelManager = ({ initialLabels }: Props) => {
   const hasMatchingDescendantPath = (node: LabelNode, query: string): boolean =>
     (node.children ?? []).some((child) => child.name.toLowerCase().includes(query) || hasMatchingDescendantPath(child, query));
 
+  const getVisibleLabelIds = (): string[] => {
+    const collectVisibleIds = (nodes: LabelNode[]): string[] =>
+      nodes.flatMap((node) => [
+        node.id,
+        ...(expandedIds[node.id] ? collectVisibleIds(node.children ?? []) : []),
+      ]);
+
+    return Array.from(new Set(collectVisibleIds(filteredLabels)));
+  };
+
+  const refreshMailCounts = async (ids: string[]) => {
+    if (refreshingMailCounts || dataMode === 'demo' || !accessToken || ids.length === 0) {
+      return;
+    }
+
+    try {
+      setRefreshingMailCounts(true);
+      const refreshed = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const details = await fetchGmailLabelDetails(id, accessToken);
+            return { id, mailCount: details.messagesTotal ?? 0 };
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('(404)')) {
+              return null;
+            }
+            throw error;
+          }
+        }),
+      );
+      const validRefreshes = refreshed.filter((entry): entry is { id: string; mailCount: number } => entry !== null);
+
+      setLabels((current) => validRefreshes.reduce(
+        (nextLabels, { id, mailCount }) => updateNodeById(nextLabels, id, (node) => ({ ...node, mailCount })),
+        current,
+      ));
+    } catch (error) {
+      setApplyMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to refresh mail counts.',
+      });
+    } finally {
+      setRefreshingMailCounts(false);
+    }
+  };
+
+  const selectLabelsWithSameName = async (id: string) => {
+    if (applying || activeOperation === 'rename' || activeOperation === 'delete') {
+      return;
+    }
+
+    const sourceNode = findNodeById(labels, id);
+    if (!sourceNode || sourceNode.isSystem) {
+      return;
+    }
+
+    const matchingIds = flattened
+      .filter((label) => label.name === sourceNode.name && !label.isSystem)
+      .map((label) => label.id);
+
+    if (matchingIds.length === 0) {
+      return;
+    }
+
+    setOperationMode('merge');
+    setActiveOperation('merge');
+    setSelected(matchingIds);
+    clearProgressForNewOperation();
+    await refreshMailCounts(matchingIds);
+  };
+
   const toggleVisibleSources = async () => {
     const visibleSelectableIds = getVisibleSelectableIds();
     if (visibleSelectableIds.length === 0) {
@@ -331,30 +404,7 @@ const LabelManager = ({ initialLabels }: Props) => {
     const nextSelected = allVisibleAreSelected ? selected.filter((id) => !existingVisibleIds.includes(id)) : existingVisibleIds;
     setSelected(nextSelected);
 
-    if (dataMode === 'demo' || !accessToken || existingVisibleIds.length === 0) {
-      return;
-    }
-
-    const refreshed = await Promise.all(
-      existingVisibleIds.map(async (id) => {
-        try {
-          const details = await fetchGmailLabelDetails(id, accessToken);
-          return { id, mailCount: details.messagesTotal ?? 0 };
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('(404)')) {
-            return null;
-          }
-          throw error;
-        }
-      }),
-    );
-
-    const validRefreshes = refreshed.filter((entry): entry is { id: string; mailCount: number } => entry !== null);
-
-    setLabels((current) => validRefreshes.reduce(
-      (nextLabels, { id, mailCount }) => updateNodeById(nextLabels, id, (node) => ({ ...node, mailCount })),
-      current,
-    ));
+    await refreshMailCounts(existingVisibleIds);
   };
 
   const getSourceNames = (): string[] => {
@@ -545,6 +595,65 @@ const LabelManager = ({ initialLabels }: Props) => {
     return [...plan.operations, ...sourceDeletionOperations];
   })();
 
+  const buildProgressEntries = (hydratedCounts: Map<string, number>, status: 'pending' | 'running') =>
+    executionOperations.map((operation) => {
+      const id = getProgressItemId(operation);
+      const label =
+        operation.type === 'merge'
+          ? `${findLabelPath(operation.sourceId ?? '') ?? 'source'} → ${findLabelPath(operation.targetId) ?? 'target'}`
+          : operation.type === 'rename'
+            ? `${findLabelPath(operation.targetId) ?? 'label'} → ${getRenamedLabelName(operation.targetId, operation.newName ?? '')}`
+            : `Delete ${findLabelPath(operation.targetId) ?? 'label'}`;
+
+      return {
+        id,
+        label,
+        total: getOperationMailCount(operation, hydratedCounts),
+        processed: 0,
+        status,
+      };
+    });
+
+  const getHydratedOperationCounts = async () => {
+    if (dataMode !== 'demo' && !accessToken) {
+      setApplyMessage({ type: 'error', text: 'Please sign in with your Google Account first.' });
+      return null;
+    }
+
+    const hydratedCounts = await ensureOperationMailCounts(executionOperations);
+    if (!hydratedCounts) {
+      return null;
+    }
+
+    return hydratedCounts;
+  };
+
+  const handlePreviewOperation = async () => {
+    if (executionOperations.length === 0 || applying) {
+      return;
+    }
+
+    try {
+      setPreviewing(true);
+      setApplying(true);
+      setApplyMessage(null);
+      const hydratedCounts = await getHydratedOperationCounts();
+      if (!hydratedCounts) {
+        return;
+      }
+
+      setOperationProgress(buildProgressEntries(hydratedCounts, 'pending'));
+    } catch (error) {
+      setApplyMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to preview operations.',
+      });
+    } finally {
+      setPreviewing(false);
+      setApplying(false);
+    }
+  };
+
   const refreshAffectedLabelCounts = async (operations: Array<{ type: string; sourceId?: string; targetId: string; newName?: string }>) => {
     const ids = [...new Set(
       operations.flatMap((operation) => [operation.targetId, operation.sourceId].filter((id): id is string => Boolean(id))),
@@ -625,40 +734,17 @@ const LabelManager = ({ initialLabels }: Props) => {
       return;
     }
 
-    if (dataMode !== 'demo' && !accessToken) {
-      setApplyMessage({ type: 'error', text: 'Please sign in with your Google Account first.' });
-      return;
-    }
-
     try {
       setApplying(true);
       setActiveOperation(null);
       setApplyMessage(null);
 
-      const hydratedCounts = await ensureOperationMailCounts(executionOperations);
+      const hydratedCounts = await getHydratedOperationCounts();
       if (!hydratedCounts) {
         return;
       }
 
-      const progressEntries = executionOperations.map((operation) => {
-        const id = getProgressItemId(operation);
-        const label =
-          operation.type === 'merge'
-            ? `${findLabelPath(operation.sourceId ?? '') ?? 'source'} → ${findLabelPath(operation.targetId) ?? 'target'}`
-            : operation.type === 'rename'
-              ? `${findLabelPath(operation.targetId) ?? 'label'} → ${getRenamedLabelName(operation.targetId, operation.newName ?? '')}`
-              : `Delete ${findLabelPath(operation.targetId) ?? 'label'}`;
-
-        return {
-          id,
-          label,
-          total: getOperationMailCount(operation, hydratedCounts),
-          processed: 0,
-          status: 'running' as const,
-        };
-      });
-
-      setOperationProgress(progressEntries);
+      setOperationProgress(buildProgressEntries(hydratedCounts, 'running'));
 
       for (let index = 0; index < executionOperations.length; index += 1) {
         const operation = executionOperations[index];
@@ -752,8 +838,8 @@ const LabelManager = ({ initialLabels }: Props) => {
       <header className="app-header">
         <div>
           <p className="eyebrow">Gmail Label Manager</p>
-          <h1>Organise labels safely</h1>
-          <p className="hero-copy">Preview merges, rename labels, and keep a clear overview of your hierarchy before applying anything.</p>
+          <h1>Merge & organise labels efficiently</h1>
+          <p className="hero-copy">Select sources and target labels to merge, check and validate operations before applying any changes. Empty source labels will be deleted automatically. You can also filter, rename or delete labels. Click on "source" header to select all matching labels as source.</p>
         </div>
         <div className="actions">
           <DataSourcePanel
@@ -798,12 +884,20 @@ const LabelManager = ({ initialLabels }: Props) => {
               </button>
               <button
                 type="button"
+                className="mini-button"
+                onClick={() => void handlePreviewOperation()}
+                disabled={applying || !canRunOperation}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
                 className={`run-button ${canRunOperation ? 'run-button-ready' : ''}`}
                 onClick={handleRunOperation}
                 disabled={applying || !canRunOperation}
               >
                 <span aria-hidden="true">▶</span>
-                {applying ? 'Running…' : 'Run'}
+                {previewing ? 'Previewing…' : applying ? 'Running…' : 'Run'}
               </button>
             </div>
           </div>
@@ -830,6 +924,7 @@ const LabelManager = ({ initialLabels }: Props) => {
                   <div className="operation-progress-content">
                     {progress.total > 0 ? <span className="operation-progress-meta">{progress.processed}/{progress.total} mails</span> : null}
                     <div className="operation-progress-status">
+                      {progress.status === 'pending' && <span className="operation-progress-state">Preview</span>}
                       {progress.status === 'running' && <span className="operation-progress-state">Running</span>}
                       {progress.status === 'success' && <span className="status-icon status-success" aria-label="Succeeded">✓</span>}
                       {progress.status === 'error' && <span className="status-icon status-error" aria-label="Failed">✕</span>}
@@ -876,7 +971,24 @@ const LabelManager = ({ initialLabels }: Props) => {
         <div className="tree-shell">
           <div className="tree-header" role="row">
             <div className="tree-cell" style={{ gridColumn: '1 / 2' }}>Label</div>
-            <div className="tree-cell" style={{ gridColumn: '2 / 3' }}>Mails</div>
+            <div
+              className={`tree-cell tree-header-source-toggle ${refreshingMailCounts ? 'is-refreshing' : ''}`}
+              style={{ gridColumn: '2 / 3' }}
+              role="button"
+              tabIndex={0}
+              onClick={() => void refreshMailCounts(getVisibleLabelIds())}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void refreshMailCounts(getVisibleLabelIds());
+                }
+              }}
+              aria-label="Refresh mail counts for visible labels"
+              aria-busy={refreshingMailCounts}
+              title="Click header to refresh mail counts"
+            >
+              {refreshingMailCounts ? 'Refreshing…' : 'Mails'}
+            </div>
             <div
               className="tree-cell tree-header-source-toggle"
               style={{ gridColumn: '3 / 4' }}
@@ -890,6 +1002,7 @@ const LabelManager = ({ initialLabels }: Props) => {
                 }
               }}
               aria-label="Toggle all visible selectable sources"
+              title="Click header to toggle all visible selectable sources"
             >
               Source
             </div>
@@ -919,6 +1032,9 @@ const LabelManager = ({ initialLabels }: Props) => {
                     }
                     clearProgressForNewOperation();
                   })();
+                }}
+                onLabelDoubleClick={(id) => {
+                  void selectLabelsWithSameName(id);
                 }}
                 renameMap={renameMap}
                 onRename={updateRename}

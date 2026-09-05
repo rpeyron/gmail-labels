@@ -6,6 +6,7 @@ export type LabelTreeRowProps = {
   selectedIds: string[];
   onToggleSelection: (id: string) => void;
   onLabelClick: (id: string) => void;
+  onLabelDoubleClick: (id: string) => void;
   renameMap: Record<string, string>;
   onRename: (id: string, value: string) => void;
   targetLabelId: string;
@@ -30,6 +31,7 @@ const LabelTreeRow = ({
   selectedIds,
   onToggleSelection,
   onLabelClick,
+  onLabelDoubleClick,
   renameMap,
   onRename,
   targetLabelId,
@@ -67,6 +69,7 @@ const LabelTreeRow = ({
           role="treeitem"
           aria-level={depth + 1}
           onClick={() => onLabelClick(node.id)}
+          onDoubleClick={() => onLabelDoubleClick(node.id)}
         >
           {isInternal ? (
             <button type="button" className="tree-toggle" onClick={() => onToggleExpand(node.id)} aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}>
@@ -120,6 +123,7 @@ const LabelTreeRow = ({
           selectedIds={selectedIds}
           onToggleSelection={onToggleSelection}
           onLabelClick={onLabelClick}
+          onLabelDoubleClick={onLabelDoubleClick}
           renameMap={renameMap}
           onRename={onRename}
           targetLabelId={targetLabelId}

@@ -30,6 +30,7 @@
         "Google account mode and demo mode parity",
         "merge, rename, and delete workflows",
         "safe operation summary and live validation",
+        "preview planned tasks before execution",
         "compact and clear label-tree UX"
       ]
     },
@@ -41,6 +42,20 @@
         "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
       ],
+      "credential-setup": {
+        "provider": "Google Cloud Console",
+        "api": "Gmail API",
+        "application-type": "Web application",
+        "authorized-javascript-origins": [
+          "http://localhost:5173"
+        ],
+        "oauth-consent-screen": "configure the app audience before sign-in",
+        "test-user-addresses": [
+          "your.name@gmail.com",
+          "qa.account@gmail.com"
+        ],
+        "test-user-addresses-note": "These are documentation examples only; replace them with the real Gmail addresses used for testing and add every address in Google Cloud Console > Google Auth platform > Audience > Test users."
+      },
       "behavior": [
         "persist client ID locally in browser storage",
         "re-open the Google setup panel when needed",
@@ -51,13 +66,15 @@
     "features:gmail-label-management": [
       "display nested Gmail label hierarchy",
       "allow source selection for visible, selectable labels",
+      "double-click a label to select every non-system label with exactly the same name",
       "allow single target selection",
       "rename labels inline with current label path in summary",
       "delete labels only when they are empty and not system labels",
       "block system labels from action flows",
       "filter labels by name",
       "hide test-only labels from Google results",
-      "refresh mail counts after affected operations"
+      "refresh mail counts after affected operations",
+      "refresh mail counts for every label row currently visible when the Mails column header is activated"
     ],
 
     "demo-mode": {
@@ -96,6 +113,8 @@
           "target-selection: single radio button for the target label",
           "actions-column: inline rename and delete actions",
           "tree-toolbar: filter, expand all, collapse all, and refresh controls",
+          "mail-count-refresh: activate the Mails column header to refresh counts for visible rows",
+          "operation-preview: create the same task rows as Run with zero progress and no side effects",
           "validation-errors: displays invalid operation states"
         ]
       },
@@ -105,12 +124,15 @@
         "label icon displayed before each label name",
         "expand/collapse controls for each node and global expand/collapse",
         "source selection respects the active filter and excludes system labels",
+        "double-click selection uses exact label names, excludes system labels, and refreshes the newly selected mail counts",
+        "Mails header refreshes counts for rendered rows only, respecting the active filter and expanded branches",
         "delete action is disabled for system labels and non-empty labels",
         "path display uses / separators",
         "loading spinner displayed while Gmail labels are fetched"
       ],
       "dry-run": [
         "show planned operations",
+        "Preview creates one pending task row per executable operation with processed count set to zero",
         "no side effects before confirmation",
         "display progress for the active operation"
       ]
@@ -121,6 +143,7 @@
         "use the official Gmail API only for live data",
         "keep label tree updates consistent with the latest Gmail response",
         "refresh the affected mail counts after each successful operation",
+        "refresh visible label mail counts in parallel when the Mails header is activated",
         "retry transient failures when appropriate",
         "handle stale deleted labels gracefully by ignoring 404 responses"
       ],
@@ -137,7 +160,7 @@
       ],
       "performance": [
         "batch refresh of affected labels",
-        "avoid unnecessary Gmail detail requests for deleted or system labels",
+        "avoid unnecessary Gmail detail requests for deleted or collapsed labels",
         "keep progress feedback visible during execution"
       ]
     },
