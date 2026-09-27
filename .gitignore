@@ -30,3 +30,4 @@ coverage/
 # generated files
 *.tsbuildinfo
 
+takeout-stats/data/**

@@ -1,116 +1,70 @@
 # Gmail Label Manager
 
-A Vite + React + TypeScript app for safely previewing and applying Gmail label operations.
+Web app to preview and apply Gmail label operations safely: merge, rename, delete, filter — in a single tree view.
 
-## What the app does
+## Features
 
-- Manage Gmail labels in a single tree view
-- Switch between a demo dataset and a real Google account
-- Filter labels by name
-- Select all visible, selectable labels from the Source column with one click
-- With an empty filter, clicking the Source header clears all current source selections; clicking it again selects all visible selectable labels
-- Double-click a label to select every non-system label with exactly the same name
-- Double-click selection is additive and keeps existing source selections
-- Preview the planned task rows before running operations
-- Merge selected labels into a target label
-- Rename labels inline
-- Delete empty labels only
-- Prevent actions on system labels
-- Hide test-only labels from Google account data
-- Show a loading spinner while Gmail labels are being fetched
-- Persist the Google OAuth client ID locally in the browser
-- Refresh all visible mail counts by clicking the `Mails` column header
-- Refresh mail counts after label operations and skip deleted labels safely
+- Unified label tree with nested hierarchy, alphabetical sorting (system labels last)
+- Merge selected labels into a target label, rename inline, delete empty labels only
+- Operation summary with real label paths and live validation before execution
+- Preview planned tasks (dry run) before running them
+- Filter by name (auto-applied after 400 ms) with automatic expansion of matches
+- Select all visible labels in one click; double-click selects all labels with the same name
+- Sticky parent path while scrolling; open a label in Gmail in a new window
+- Mail counts per label, refreshable individually or for all visible rows
+- Demo mode (built-in dataset, no Google account) and Google mode (live Gmail API)
+- System labels are read-only; test-only labels are hidden
 
-## Current UI behavior
+## Quick start
 
-- Compact mode toggle: Demo / Google
-- Google auth status is displayed in the connection box
-- A floating setup panel opens from the Google button when needed
-- The active mode is visually emphasized with red for Demo and green for Google
-- The operation summary shows the real selected label paths
-- The tree remains clean and compact without outer frames around the operation block or label tree
-
-## Features checklist
-
-- Unified label tree with nested hierarchy
-- Label count display
-- Source selection by checkbox
-- Target selection by radio
-- Rename and delete actions
-- Operation summary at top
-- Validation messages for invalid operations
-- Demo mode and live Google mode
-- Safe handling of Gmail API 404s for deleted labels
-- Google API transient-error handling and refresh logic
-
-## Development
-
-### Requirements
-
-- Node.js 18 or newer
-- A Google Cloud project with the Gmail API enabled for Google account mode
-- A Google OAuth 2.0 Web application client ID
-- At least one Gmail address that can be added as a Google OAuth test user
+Requires Node.js 18+.
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Production build
+Open http://localhost:5173 and switch to **Demo** mode — no Google account needed.
+
+## Google account mode
+
+1. In [Google Cloud Console](https://console.cloud.google.com/): create/select a project, enable the **Gmail API**, create an **OAuth 2.0 Client ID** (Web application), and add `http://localhost:5173` to **Authorized JavaScript origins**.
+2. Add every Gmail address you'll use as a test user (**Google Auth platform > Audience > Test users**) while the consent screen is in Testing status.
+3. In the app: select **Google** mode → paste the Client ID → **Connect Google account** → authorize → review the summary → **Run**.
+
+Notes: test-mode refresh tokens expire after ~7 days (sign in again as needed); accounts not listed as test users get `access_denied`.
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm test` | Run tests |
+
+## takeout-stats — companion tools
+
+Standalone Python tools (no dependency on the app) to analyze Gmail Takeout `.mbox` exports:
+
+| Tool | Purpose |
+|---|---|
+| `mbox-gen-html.py` | Render messages stats to JSON data for the HTML viewer |
+| `mbox-gen-html.html` | Advanced statistics browser explorer: view, filter, sort, group mails statistics |
+| `mbox-stats.py` | Basic statistics per year and Gmail label (count, size) — robust slow parser (`mailbox`) |
+| `mbox-stats-fast.py` | Same basic statistics with a fast manual line-based parser for very large mbox files |
+
+Typical run for the viewer:
 
 ```bash
-npm run build
+python mbox-gen-html.py <mbox|maildir>...
+python -m http.server 9000
+# open http://localhost:9000/mbox-gen-html.html
 ```
 
-## Tests
+Edit the `MBOX_FILE` path at the top of the stats scripts before running them.
 
-```bash
-npm test
-```
+## More
 
-## Using Google account mode
-
-### 1) Create a Google OAuth client ID
-
-1. Open the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create or select a project
-3. Enable the Gmail API
-4. Create an OAuth 2.0 Client ID
-5. Choose a Web application
-6. Add the local origin to **Authorized JavaScript origins**, for example: `http://localhost:5173`
-7. Save the client and copy the generated Client ID
-
-### 2) Add the Gmail test addresses
-
-While the OAuth consent screen is in **Testing** status:
-
-1. Open **Google Cloud Console > Google Auth platform > Audience**
-2. In **Test users**, click **Add users**
-3. Add every Gmail address that will authorize this local app, one address per entry, for example:
-	- `your.name@gmail.com`
-	- `qa.account@gmail.com`
-4. Save the audience settings
-
-The addresses above are examples only. Replace them with the real Gmail addresses used for testing. A Google account that is not listed as a test user can be blocked with an `access_denied` error. Test-mode refresh tokens can also expire after seven days, so sign in again when necessary.
-
-### 3) Use it in the app
-
-1. Select the Google mode
-2. Paste the Client ID in the popup field
-3. Click Connect Google account
-4. Authorize the app to access Gmail labels
-5. Review the planned changes and run the operation when ready
-
-## Notes
-
-- The app uses the Gmail API with OAuth for real label operations
-- The required scopes are `gmail.labels` and `gmail.modify`
-- In demo mode, the app uses a built-in dataset and does not require a Google account
-- In Google mode, click the `Mails` column header to refresh the counters for every label currently shown by the tree filter
-- In Google mode, double-clicking a label refreshes the mail counts of all newly selected labels with the exact same name
-- Click `Preview` to create the same operation task rows as `Run` without executing them; every preview starts at `0` processed mails
-- System labels are intentionally disabled and cannot be edited
-- Test labels are filtered out to avoid noise in the Gmail tree
-- Deleted labels are skipped during refresh if Gmail returns a 404
+Mainly developed with IA (Copilot & Claude free plans)
+- Engineering constraints: [AGENTS.md](AGENTS.md)
+- Full requirements: [.github/requirements-functional.md](.github/requirements-functional.md), [.github/requirements-technical.md](.github/requirements-technical.md)
