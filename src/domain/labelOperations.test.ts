@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLabelPlan, flattenLabelTree } from './labelOperations';
+import { buildLabelPlan, flattenLabelTree, sortLabelTree } from './labelOperations';
 
 describe('buildLabelPlan', () => {
   it('creates a merge plan when merge mode is active', () => {
@@ -108,5 +108,22 @@ describe('flattenLabelTree', () => {
       { id: 'archive', name: 'Archive', depth: 1, mailCount: 8 },
       { id: 'personal', name: 'Personal', depth: 0, mailCount: 15 },
     ]);
+  });
+});
+
+describe('sortLabelTree', () => {
+  it('sorts labels alphabetically and places system labels last at every level', () => {
+    const sorted = sortLabelTree([
+      { id: 'system', name: 'Inbox', isSystem: true },
+      { id: 'zulu', name: 'zulu' },
+      { id: 'alpha', name: 'Alpha', children: [
+        { id: 'system-child', name: 'System', isSystem: true },
+        { id: 'beta', name: 'beta' },
+      ] },
+      { id: 'bravo', name: 'bravo' },
+    ]);
+
+    expect(sorted.map((label) => label.id)).toEqual(['alpha', 'bravo', 'zulu', 'system']);
+    expect(sorted[0].children?.map((label) => label.id)).toEqual(['beta', 'system-child']);
   });
 });

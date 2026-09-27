@@ -39,6 +39,126 @@ export const demoLabels: LabelNode[] = [
     ],
   },
   {
+    id: 'demo-work',
+    name: 'Work',
+    mailCount: 312,
+    children: [
+      {
+        id: 'demo-work-clients',
+        name: 'Clients',
+        mailCount: 146,
+        children: [
+          {
+            id: 'demo-work-clients-northwind',
+            name: 'Northwind',
+            mailCount: 58,
+            children: [
+              { id: 'demo-work-clients-northwind-2025', name: '2025', mailCount: 24 },
+              { id: 'demo-work-clients-northwind-archive', name: 'Archive', mailCount: 34 },
+            ],
+          },
+          {
+            id: 'demo-work-clients-contoso',
+            name: 'Contoso',
+            mailCount: 88,
+            children: [
+              { id: 'demo-work-clients-contoso-2025', name: '2025', mailCount: 41 },
+              { id: 'demo-work-clients-contoso-archive', name: 'Archive', mailCount: 47 },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'demo-work-planning',
+        name: 'Planning',
+        mailCount: 166,
+        children: [
+          {
+            id: 'demo-work-planning-q1',
+            name: 'Q1',
+            mailCount: 72,
+            children: [{ id: 'demo-work-planning-q1-review', name: 'Review', mailCount: 29 }],
+          },
+          {
+            id: 'demo-work-planning-q2',
+            name: 'Q2',
+            mailCount: 94,
+            children: [{ id: 'demo-work-planning-q2-review', name: 'Review', mailCount: 38 }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'demo-research',
+    name: 'Research',
+    mailCount: 228,
+    children: [
+      {
+        id: 'demo-research-library',
+        name: 'Library',
+        mailCount: 117,
+        children: [
+          { id: 'demo-research-library-archive', name: 'Archive', mailCount: 63 },
+          { id: 'demo-research-library-reading', name: 'Reading list', mailCount: 54 },
+        ],
+      },
+      {
+        id: 'demo-research-notes',
+        name: 'Notes',
+        mailCount: 111,
+        children: [
+          {
+            id: 'demo-research-notes-2024',
+            name: '2024',
+            mailCount: 52,
+            children: [{ id: 'demo-research-notes-2024-archive', name: 'Archive', mailCount: 17 }],
+          },
+          { id: 'demo-research-notes-2025', name: '2025', mailCount: 59 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'demo-teams',
+    name: 'Teams',
+    mailCount: 205,
+    children: [
+      {
+        id: 'demo-teams-design',
+        name: 'Design',
+        mailCount: 72,
+        children: [
+          { id: 'demo-teams-design-inbox', name: 'Inbox', mailCount: 31 },
+          { id: 'demo-teams-design-archive', name: 'Archive', mailCount: 41 },
+        ],
+      },
+      {
+        id: 'demo-teams-engineering',
+        name: 'Engineering',
+        mailCount: 83,
+        children: [
+          {
+            id: 'demo-teams-engineering-inbox',
+            name: 'Inbox',
+            mailCount: 44,
+            children: [{ id: 'demo-teams-engineering-inbox-urgent', name: 'Urgent', mailCount: 12 }],
+          },
+          { id: 'demo-teams-engineering-archive', name: 'Archive', mailCount: 39 },
+        ],
+      },
+      {
+        id: 'demo-teams-support',
+        name: 'Support',
+        mailCount: 50,
+        children: [
+          { id: 'demo-teams-support-inbox', name: 'Inbox', mailCount: 27 },
+          { id: 'demo-teams-support-archive', name: 'Archive', mailCount: 23 },
+        ],
+      },
+    ],
+  },
+  {
     id: 'demo-admin',
     name: 'Admin',
     mailCount: 67,
@@ -60,6 +180,30 @@ export const demoLabels: LabelNode[] = [
     name: 'Archive room',
     mailCount: 0,
   },
+  {
+    id: 'INBOX',
+    name: 'Inbox',
+    mailCount: 42,
+    isSystem: true,
+  },
+  {
+    id: 'STARRED',
+    name: 'Starred',
+    mailCount: 18,
+    isSystem: true,
+  },
+  {
+    id: 'SENT',
+    name: 'Sent',
+    mailCount: 27,
+    isSystem: true,
+  },
+  {
+    id: 'TRASH',
+    name: 'Trash',
+    mailCount: 6,
+    isSystem: true,
+  },
 ];
 
 const findNodeById = (nodes: LabelNode[], id: string): LabelNode | null => {
@@ -74,6 +218,16 @@ const findNodeById = (nodes: LabelNode[], id: string): LabelNode | null => {
   }
   return null;
 };
+
+const removeMailCounts = (nodes: LabelNode[]): LabelNode[] =>
+  nodes.map(({ mailCount: _mailCount, children, ...node }) => ({
+    ...node,
+    children: children ? removeMailCounts(children) : undefined,
+  }));
+
+export const getDemoLabels = (): LabelNode[] => removeMailCounts(demoLabels);
+
+export const getDemoLabelMailCount = (id: string): number | undefined => findNodeById(demoLabels, id)?.mailCount;
 
 const updateNodeById = (nodes: LabelNode[], id: string, updater: (node: LabelNode) => LabelNode): LabelNode[] =>
   nodes.map((node) => {

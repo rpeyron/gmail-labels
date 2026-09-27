@@ -43,6 +43,20 @@ export const flattenLabelTree = (labels: LabelNode[]) => {
   return flatten(labels);
 };
 
+export const sortLabelTree = (labels: LabelNode[]): LabelNode[] =>
+  [...labels]
+    .sort((first, second) => {
+      if (Boolean(first.isSystem) !== Boolean(second.isSystem)) {
+        return first.isSystem ? 1 : -1;
+      }
+
+      return first.name.localeCompare(second.name, undefined, { sensitivity: 'base' }) || first.id.localeCompare(second.id);
+    })
+    .map((label) => ({
+      ...label,
+      children: label.children ? sortLabelTree(label.children) : undefined,
+    }));
+
 export const buildLabelPlan = ({
   labels,
   selectedLabelIds,

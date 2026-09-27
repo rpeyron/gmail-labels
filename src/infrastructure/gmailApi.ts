@@ -22,7 +22,7 @@ export type GmailUserProfile = {
   emailAddress: string;
 };
 
-import { demoLabels } from './demoMode';
+import { getDemoLabels } from './demoMode';
 
 type GmailApiResponse = {
   labels?: GmailApiLabel[];
@@ -146,7 +146,7 @@ export const fetchGmailLabelDetails = async (labelId: string, accessToken: strin
 
 export const loadGmailLabels = async (mode: GmailDataMode = 'demo', accessToken?: string): Promise<GmailLabel[]> => {
   if (mode === 'demo') {
-    return demoLabels;
+    return getDemoLabels();
   }
 
   const rawLabels = await fetchGmailLabels(accessToken);

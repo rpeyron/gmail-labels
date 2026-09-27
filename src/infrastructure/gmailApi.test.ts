@@ -5,9 +5,11 @@ describe('loadGmailLabels', () => {
   it('returns demo data when demo mode is selected', async () => {
     const labels = await loadGmailLabels('demo');
 
-    expect(labels).toHaveLength(6);
+    expect(labels).toHaveLength(13);
     expect(labels[0].name).toBe('Projects');
     expect(labels[1].name).toBe('Personal');
+    expect(labels[0].mailCount).toBeUndefined();
+    expect(labels.find((label) => label.id === 'INBOX')?.isSystem).toBe(true);
   });
 
   it('reports an authentication error when Gmail mode is unavailable', async () => {

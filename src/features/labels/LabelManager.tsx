@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { buildLabelPlan, flattenLabelTree, type LabelNode, type OperationMode } from '../../domain/labelOperations';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { buildLabelPlan, flattenLabelTree, sortLabelTree, type LabelNode, type OperationMode } from '../../domain/labelOperations';
 import { fetchGmailLabelDetails, fetchGmailUserProfile, loadGmailLabels, type GmailDataMode } from '../../infrastructure/gmailApi';
 import { requestGoogleAccessToken } from '../../infrastructure/googleAuth';
 import { applyMergeLabels, applyRenameLabel, deleteLabel } from '../../infrastructure/gmailOperations';
-import { applyDemoOperation, removeDemoNode } from '../../infrastructure/demoMode';
+import { applyDemoOperation, getDemoLabelMailCount, removeDemoNode } from '../../infrastructure/demoMode';
 import LabelTreeRow from './LabelTreeRow';
 import DataSourcePanel from './DataSourcePanel';
 import LabelTreeToolbar from './LabelTreeToolbar';
@@ -31,24 +31,59 @@ const LabelManager = ({ initialLabels }: Props) => {
   const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [filterInput, setFilterInput] = useState('');
   const [labelFilter, setLabelFilter] = useState('');
   const [refreshingLabels, setRefreshingLabels] = useState(false);
   const [refreshingMailCounts, setRefreshingMailCounts] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [stickyAncestorIds, setStickyAncestorIds] = useState<string[]>([]);
+  const treeShellRef = useRef<HTMLDivElement>(null);
+  const expandableStructureKeyRef = useRef('');
+  const expandedBeforeFilterRef = useRef<Record<string, boolean> | null>(null);
 
   useEffect(() => {
-    const initialExpanded: Record<string, boolean> = {};
-    const populate = (nodes: LabelNode[]) => {
+    const expandableIds = new Set<string>();
+    const collectExpandableIds = (nodes: LabelNode[]) => {
       nodes.forEach((node) => {
         if ((node.children?.length ?? 0) > 0) {
-          initialExpanded[node.id] = true;
-          populate(node.children ?? []);
+          expandableIds.add(node.id);
+          collectExpandableIds(node.children ?? []);
         }
       });
     };
-    populate(labels);
-    setExpandedIds(initialExpanded);
+    collectExpandableIds(labels);
+    const expandableStructureKey = Array.from(expandableIds).sort().join('|');
+    if (expandableStructureKeyRef.current === expandableStructureKey) {
+      return;
+    }
+    expandableStructureKeyRef.current = expandableStructureKey;
+
+    setExpandedIds((current) => {
+      const next: Record<string, boolean> = {};
+      expandableIds.forEach((id) => {
+        next[id] = current[id] ?? true;
+      });
+
+      const currentIds = Object.keys(current);
+      const nextIds = Object.keys(next);
+      if (
+        currentIds.length === nextIds.length
+        && nextIds.every((id) => current[id] === next[id])
+      ) {
+        return current;
+      }
+
+      return next;
+    });
   }, [labels]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setLabelFilter(filterInput);
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [filterInput]);
 
   useEffect(() => {
     if (dataMode === 'gmail' && !accessToken) {
@@ -98,8 +133,14 @@ const LabelManager = ({ initialLabels }: Props) => {
   const flattened = useMemo(() => flattenLabelTree(labels), [labels]);
 
   const ensureLabelMailCount = async (labelId: string): Promise<boolean> => {
-    if (dataMode === 'demo' || flattened.some((label) => label.id === labelId && label.mailCount !== undefined)) {
+    if (flattened.some((label) => label.id === labelId && label.mailCount !== undefined)) {
       return true;
+    }
+
+    if (dataMode === 'demo') {
+      const mailCount = getDemoLabelMailCount(labelId);
+      setLabels((current) => updateNodeById(current, labelId, (node) => ({ ...node, mailCount })));
+      return mailCount !== undefined;
     }
 
     if (!accessToken) {
@@ -138,7 +179,9 @@ const LabelManager = ({ initialLabels }: Props) => {
       }
 
       if (dataMode === 'demo') {
-        counts.set(id, current?.mailCount ?? 0);
+        const mailCount = getDemoLabelMailCount(id) ?? 0;
+        counts.set(id, mailCount);
+        setLabels((currentLabels) => updateNodeById(currentLabels, id, (node) => ({ ...node, mailCount })));
         continue;
       }
 
@@ -288,7 +331,102 @@ const LabelManager = ({ initialLabels }: Props) => {
     }, []);
   };
 
-  const filteredLabels = useMemo(() => filterLabels(labels, labelFilter), [labels, labelFilter]);
+  const sortedLabels = useMemo(() => sortLabelTree(labels), [labels]);
+  const filteredLabels = useMemo(() => filterLabels(sortedLabels, labelFilter), [sortedLabels, labelFilter]);
+
+  useEffect(() => {
+    if (!labelFilter.trim()) {
+      if (expandedBeforeFilterRef.current) {
+        const previousExpandedIds = expandedBeforeFilterRef.current;
+        expandedBeforeFilterRef.current = null;
+        setExpandedIds(previousExpandedIds);
+      }
+      return;
+    }
+
+    if (!expandedBeforeFilterRef.current) {
+      expandedBeforeFilterRef.current = { ...expandedIds };
+    }
+
+    const matchingPathIds = new Set<string>();
+    const collectMatchingPathIds = (nodes: LabelNode[]) => {
+      nodes.forEach((node) => {
+        if ((node.children?.length ?? 0) > 0) {
+          matchingPathIds.add(node.id);
+          collectMatchingPathIds(node.children ?? []);
+        }
+      });
+    };
+    collectMatchingPathIds(filteredLabels);
+
+    setExpandedIds((current) => {
+      const next = { ...current };
+      matchingPathIds.forEach((id) => {
+        next[id] = true;
+      });
+
+      const currentIds = Object.keys(current);
+      const nextIds = Object.keys(next);
+      if (currentIds.length === nextIds.length && nextIds.every((id) => current[id] === next[id])) {
+        return current;
+      }
+
+      return next;
+    });
+  }, [labelFilter, filteredLabels]);
+
+  const scrollToTreeLabel = (id: string) => {
+    const row = Array.from(treeShellRef.current?.querySelectorAll<HTMLElement>('[data-tree-label-id]') ?? [])
+      .find((candidate) => candidate.dataset.treeLabelId === id);
+
+    row?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+  };
+
+  useEffect(() => {
+    const updateStickyAncestors = () => {
+      const treeShell = treeShellRef.current;
+      if (!treeShell) {
+        return;
+      }
+
+      const treeHeader = treeShell.querySelector<HTMLElement>('.tree-header');
+      const ancestorBar = treeShell.querySelector<HTMLElement>('.tree-ancestor-bar');
+      const rows = Array.from(treeShell.querySelectorAll<HTMLElement>('[data-tree-label-id]'));
+      const shellBounds = treeShell.getBoundingClientRect();
+      const headerHeight = treeHeader?.getBoundingClientRect().height ?? 0;
+      const ancestorBarHeight = ancestorBar?.getBoundingClientRect().height ?? 0;
+      const boundary = Math.max(shellBounds.top, 0) + headerHeight + ancestorBarHeight;
+      const currentRows = rows.filter((row) => row.getBoundingClientRect().top <= boundary && row.getBoundingClientRect().bottom > boundary);
+      const currentRow = currentRows[currentRows.length - 1];
+
+      if (!currentRow || shellBounds.bottom <= boundary) {
+        setStickyAncestorIds((current) => (current.length === 0 ? current : []));
+        return;
+      }
+
+      const rowsById = new Map(rows.map((row) => [row.dataset.treeLabelId ?? '', row]));
+      const ancestors: string[] = [];
+      let parentId = currentRow.dataset.treeParentId ?? '';
+      while (parentId) {
+        ancestors.unshift(parentId);
+        parentId = rowsById.get(parentId)?.dataset.treeParentId ?? '';
+      }
+      setStickyAncestorIds((current) => (
+        current.length === ancestors.length && current.every((id, index) => id === ancestors[index])
+          ? current
+          : ancestors
+      ));
+    };
+
+    updateStickyAncestors();
+    window.addEventListener('scroll', updateStickyAncestors, { passive: true });
+    window.addEventListener('resize', updateStickyAncestors);
+
+    return () => {
+      window.removeEventListener('scroll', updateStickyAncestors);
+      window.removeEventListener('resize', updateStickyAncestors);
+    };
+  }, [filteredLabels, expandedIds, stickyAncestorIds]);
 
   const getVisibleSelectableIds = (): string[] => {
     const normalizedQuery = labelFilter.trim().toLowerCase();
@@ -332,7 +470,7 @@ const LabelManager = ({ initialLabels }: Props) => {
   };
 
   const refreshMailCounts = async (ids: string[]) => {
-    if (refreshingMailCounts || dataMode === 'demo' || !accessToken || ids.length === 0) {
+    if (refreshingMailCounts || ids.length === 0 || (dataMode !== 'demo' && !accessToken)) {
       return;
     }
 
@@ -340,6 +478,10 @@ const LabelManager = ({ initialLabels }: Props) => {
       setRefreshingMailCounts(true);
       const refreshed = await Promise.all(
         ids.map(async (id) => {
+          if (dataMode === 'demo') {
+            return { id, mailCount: getDemoLabelMailCount(id) ?? 0 };
+          }
+
           try {
             const details = await fetchGmailLabelDetails(id, accessToken);
             return { id, mailCount: details.messagesTotal ?? 0 };
@@ -444,6 +586,16 @@ const LabelManager = ({ initialLabels }: Props) => {
     };
 
     return findLabel(labels, targetLabelId);
+  };
+
+  const openLabelInGmail = (id: string) => {
+    const labelPath = findLabelPath(id);
+    if (!labelPath) {
+      return;
+    }
+
+    const searchQuery = encodeURIComponent(`label:"${labelPath}"`);
+    window.open(`https://mail.google.com/mail/u/0/#search/${searchQuery}`, '_blank', 'noopener,noreferrer');
   };
 
   const toggleExpand = (id: string) => {
@@ -965,16 +1117,37 @@ const LabelManager = ({ initialLabels }: Props) => {
 
       <section className="panel">
         <LabelTreeToolbar
-          labelFilter={labelFilter}
+          labelFilter={filterInput}
           refreshingLabels={refreshingLabels}
           applying={applying}
-          onFilterChange={setLabelFilter}
+          onFilterChange={setFilterInput}
           onExpandAll={expandAll}
           onCollapseAll={collapseAll}
           onRefresh={refreshLabels}
         />
-        <div className="tree-shell">
-          <div className="tree-header" role="row">
+        <div className="tree-shell" ref={treeShellRef}>
+          <div
+            className={`tree-ancestor-bar ${stickyAncestorIds.length === 0 ? 'tree-ancestor-bar-empty' : ''}`}
+            aria-label="Current label path"
+            aria-hidden={stickyAncestorIds.length === 0}
+          >
+            {stickyAncestorIds.map((id) => {
+              const ancestor = flattened.find((label) => label.id === id);
+              return ancestor ? (
+                <button
+                  key={id}
+                  type="button"
+                  className="tree-ancestor-item"
+                  onClick={() => scrollToTreeLabel(id)}
+                  title={`Scroll to ${ancestor.name}`}
+                >
+                  {ancestor.name}
+                </button>
+              ) : null;
+            })}
+          </div>
+          <div className="tree-scroll">
+            <div className="tree-header" role="row">
             <div className="tree-cell" style={{ gridColumn: '1 / 2' }}>Label</div>
             <div
               className={`tree-cell tree-header-source-toggle ${refreshingMailCounts ? 'is-refreshing' : ''}`}
@@ -1013,8 +1186,8 @@ const LabelManager = ({ initialLabels }: Props) => {
             </div>
             <div className="tree-cell" style={{ gridColumn: '4 / 5' }}>Target</div>
             <div className="tree-cell" style={{ gridColumn: '5 / 6' }}>Actions</div>
-          </div>
-          <div className="tree-grid" role="tree">
+            </div>
+            <div className="tree-grid" role="tree">
             {filteredLabels.map((label) => (
               <LabelTreeRow
                 key={label.id}
@@ -1106,6 +1279,10 @@ const LabelManager = ({ initialLabels }: Props) => {
                     setActiveOperation('delete');
                   })();
                 }}
+                onOpenInGmail={openLabelInGmail}
+                onRefreshMailCount={(id) => {
+                  void refreshMailCounts([id]);
+                }}
                 expandedIds={expandedIds}
                 onToggleExpand={toggleExpand}
                 labelFilter={labelFilter}
@@ -1113,6 +1290,7 @@ const LabelManager = ({ initialLabels }: Props) => {
                 activeOperation={activeOperation}
               />
             ))}
+            </div>
           </div>
         </div>
       </section>

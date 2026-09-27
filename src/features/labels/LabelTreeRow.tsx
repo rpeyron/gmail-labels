@@ -3,6 +3,7 @@ import type { LabelNode, OperationMode } from '../../domain/labelOperations';
 export type LabelTreeRowProps = {
   node: LabelNode;
   depth: number;
+  parentId?: string;
   selectedIds: string[];
   onToggleSelection: (id: string) => void;
   onLabelClick: (id: string) => void;
@@ -15,6 +16,8 @@ export type LabelTreeRowProps = {
   onRenameStart: (id: string) => void;
   onRenameEnd: (id: string) => void;
   onDelete: (id: string) => void;
+  onOpenInGmail: (id: string) => void;
+  onRefreshMailCount: (id: string) => void;
   expandedIds: Record<string, boolean>;
   onToggleExpand: (id: string) => void;
   labelFilter: string;
@@ -28,6 +31,7 @@ const hasMatchingDescendantPath = (node: LabelNode, query: string): boolean =>
 const LabelTreeRow = ({
   node,
   depth,
+  parentId,
   selectedIds,
   onToggleSelection,
   onLabelClick,
@@ -40,6 +44,8 @@ const LabelTreeRow = ({
   onRenameStart,
   onRenameEnd,
   onDelete,
+  onOpenInGmail,
+  onRefreshMailCount,
   expandedIds,
   onToggleExpand,
   labelFilter,
@@ -62,7 +68,12 @@ const LabelTreeRow = ({
 
   return (
     <>
-      <div className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''} ${isSystemLabel ? 'tree-row-system' : ''}`} role="row">
+      <div
+        className={`tree-row ${isTarget ? 'tree-row-targeted' : ''} ${isFilterParentDimmed ? 'tree-row-filter-dimmed' : ''} ${isSystemLabel ? 'tree-row-system' : ''}`}
+        data-tree-label-id={node.id}
+        data-tree-parent-id={parentId ?? ''}
+        role="row"
+      >
         <div
           className={`tree-cell tree-label-cell ${isSystemLabel ? 'tree-label-cell-system' : ''}`}
           style={{ paddingLeft: `${labelIndent}px` }}
@@ -72,7 +83,16 @@ const LabelTreeRow = ({
           onDoubleClick={() => onLabelDoubleClick(node.id)}
         >
           {isInternal ? (
-            <button type="button" className="tree-toggle" onClick={() => onToggleExpand(node.id)} aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}>
+            <button
+              type="button"
+              className="tree-toggle"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleExpand(node.id);
+              }}
+              onDoubleClick={(event) => event.stopPropagation()}
+              aria-label={expandedIds[node.id] ? 'Collapse' : 'Expand'}
+            >
               {expandedIds[node.id] ? '▾' : '▸'}
             </button>
           ) : (
@@ -81,7 +101,22 @@ const LabelTreeRow = ({
           <span className="tree-label-icon" aria-hidden="true">🏷️</span>
           <span className="tree-label">{node.name}</span>
         </div>
-        <div className="tree-cell tree-meta" role="cell">{node.mailCount === undefined ? '—' : `${node.mailCount} mails`}</div>
+        <div
+          className="tree-cell tree-meta tree-meta-refreshable"
+          role="button"
+          tabIndex={0}
+          onClick={() => onRefreshMailCount(node.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onRefreshMailCount(node.id);
+            }
+          }}
+          aria-label={`Refresh mail count for ${node.name}`}
+          title="Refresh mail count"
+        >
+          {node.mailCount === undefined ? '—' : `${node.mailCount} mails`}
+        </div>
         <div className="tree-cell" role="cell">
           <label className={`tree-checkbox ${isSource ? 'is-selected' : ''}`}>
             <input type="checkbox" checked={isSource} disabled={isSystemLabel || isLocked || Boolean(activeOperation && activeOperation !== 'merge')} onChange={() => onToggleSelection(node.id)} />
@@ -95,6 +130,15 @@ const LabelTreeRow = ({
           </label>
         </div>
         <div className="tree-cell tree-actions-cell" role="cell">
+          <button
+            type="button"
+            className="action-button action-button-open"
+            onClick={() => onOpenInGmail(node.id)}
+            aria-label={`Open ${node.name} in Gmail`}
+            title="Open in Gmail"
+          >
+            <span aria-hidden="true">↗</span>
+          </button>
           {editingLabelId === node.id ? (
             <input
               className="rename-input"
@@ -120,6 +164,7 @@ const LabelTreeRow = ({
           key={child.id}
           node={child}
           depth={depth + 1}
+          parentId={node.id}
           selectedIds={selectedIds}
           onToggleSelection={onToggleSelection}
           onLabelClick={onLabelClick}
@@ -132,6 +177,8 @@ const LabelTreeRow = ({
           onRenameStart={onRenameStart}
           onRenameEnd={onRenameEnd}
           onDelete={onDelete}
+          onOpenInGmail={onOpenInGmail}
+          onRefreshMailCount={onRefreshMailCount}
           expandedIds={expandedIds}
           onToggleExpand={onToggleExpand}
           labelFilter={labelFilter}
