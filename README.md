@@ -67,4 +67,4 @@ Edit the `MBOX_FILE` path at the top of the stats scripts before running them.
 
 Mainly developed with IA (Copilot & Claude free plans)
 - Engineering constraints: [AGENTS.md](AGENTS.md)
-- Full requirements: [.github/requirements-functional.md](.github/requirements-functional.md), [.github/requirements-technical.md](.github/requirements-technical.md)
+- Full requirements: [doc/requirements-functional.md](doc/requirements-functional.md), [doc/requirements-technical.md](doc/requirements-technical.md)

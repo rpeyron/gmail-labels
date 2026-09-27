@@ -29,5 +29,7 @@ coverage/
 
 # generated files
 *.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 takeout-stats/data/**

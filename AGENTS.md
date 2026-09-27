@@ -8,8 +8,8 @@ Gmail Label Manager — a Vite + React + TypeScript app for safely previewing an
 
 ## Requirements
 
-- **Functional** (what the product must do): [doc/requirements-functional.md](.github/requirements-functional.md)
-- **Technical** (stack, architecture, commands, tests): [doc/requirements-technical.md](.github/requirements-technical.md)
+- **Functional** (what the product must do): [doc/requirements-functional.md](doc/requirements-functional.md)
+- **Technical** (stack, architecture, commands, tests): [doc/requirements-technical.md](doc/requirements-technical.md)
 
 Functional requirements own behavior; technical requirements own implementation constraints. When the two or the code disagree, flag it rather than silently choosing one.
 
