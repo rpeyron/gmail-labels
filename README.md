@@ -1,3 +1,5 @@
+![AI Generated](https://raw.githubusercontent.com/rpeyron/rpeyron/master/images/badges/badge-ia.svg)
+
 # Gmail Label Manager
 
 Web app to preview and apply Gmail label operations safely: merge, rename, delete, filter — in a single tree view.
