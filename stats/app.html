@@ -121,6 +121,9 @@ select {
   color: #1f2328;
 }
 
+.tabulator-col.sort-asc .tabulator-col-title::after { content: " ▲"; }
+.tabulator-col.sort-desc .tabulator-col-title::after { content: " ▼"; }
+
 .chk {
   display: inline-flex;
   align-items: center;
@@ -828,6 +831,36 @@ function flattenTree(root) {
   return out;
 }
 
+/* Tri des feuilles au sein de chaque groupe (les groupes restent en place) ;
+   Name/Count/Size trient aussi les groupes à chaque niveau (label / mail_count / size) */
+function cmpVals(av, bv, dir) {
+  if (av == null) av = "";
+  if (bv == null) bv = "";
+  let cmp;
+  if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+  else cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+  return dir === "asc" ? cmp : -cmp;
+}
+
+const GROUP_SORT_FIELDS = new Set(["label", "mail_count", "size"]);
+
+function applySort(node) {
+  if (!node || !node.children || !sortState) return;
+  const ch = node.children;
+  const { field, dir } = sortState;
+
+  if (ch.length && ch.every(c => c._isLeaf)) {
+    // feuilles : subject pour la colonne Name, sinon le champ trié
+    const key = field === "label" ? "subject" : field;
+    ch.sort((a, b) => cmpVals(a[key], b[key], dir));
+  } else if (GROUP_SORT_FIELDS.has(field) && ch.length) {
+    // niveaux de regroupement : tri par la valeur agrégée (ou le label)
+    ch.sort((a, b) => cmpVals(a[field], b[field], dir));
+  }
+
+  ch.forEach(c => { if (!c._isLeaf) applySort(c); });
+}
+
 /* ------------------------------
    Tooltip : tous les champs d'une ligne
 --------------------------------*/
@@ -849,6 +882,37 @@ function tooltipFor(row) {
    Table Tabulator
 --------------------------------*/
 let table = null;
+let sortState = null; // {field, dir} — tri appliqué aux feuilles dans chaque groupe
+
+function updateSortIndicators() {
+  if (!table) return;
+  table.getColumns().forEach(col => {
+    const el = col.getElement();
+    if (!el) return;
+    el.classList.remove("sort-asc", "sort-desc");
+    const f = col.getField();
+    if (sortState && f === sortState.field) {
+      el.classList.add(sortState.dir === "asc" ? "sort-asc" : "sort-desc");
+    }
+  });
+}
+
+function onHeaderSort(column) {
+  const field = column.getField();
+  if (!field) return;
+  if (sortState && sortState.field === field) {
+    sortState = sortState.dir === "asc" ? { field, dir: "desc" } : null;
+  } else {
+    sortState = { field, dir: "asc" };
+  }
+  if (!sortState) {
+    applyGrouping(); // restaure l'ordre par défaut (taille décroissante)
+    return;
+  }
+  applySort(treeRoot);
+  initTable(flattenTree(treeRoot));
+  updateSortIndicators();
+}
 
 function initTable(flatData) {
   if (table) {
@@ -868,6 +932,7 @@ function initTable(flatData) {
     data: flatData,
     layout: "fitDataFill",
     movableColumns: true,
+    columnDefaults: { headerSort: false },
     columns: [
       {
         title: "Name",
@@ -886,8 +951,7 @@ function initTable(flatData) {
           const row = cell.getRow().getData();
           if (!row._isLeaf) {
             row.expanded = !row.expanded;
-            const flat = flattenTree(treeRoot);
-            table.setData(flat);
+            initTable(flattenTree(treeRoot));
           }
         }
       },
@@ -928,6 +992,8 @@ function initTable(flatData) {
       },
     ],
   });
+
+  table.on("headerClick", (e, column) => onHeaderSort(column));
 }
 
 /* ------------------------------
@@ -1016,9 +1082,11 @@ async function applyGrouping() {
   }
   const filtered = filterByText(RAW_DATA);
   treeRoot = buildTree(filtered, fields);
+  if (sortState) applySort(treeRoot);
   const flat = flattenTree(treeRoot);
 
   initTable(flat);
+  updateSortIndicators();
 
   hideSpinner();
 }

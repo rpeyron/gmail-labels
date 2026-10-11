@@ -101,6 +101,7 @@ def extract_real_date(msg):
     """Latest date found in Received headers (after the last ';'), or None."""
     best = None
     for received in msg.get_all("Received") or []:
+        received = str(received)
         if ";" not in received:
             continue
         date_part = received.rsplit(";", 1)[1].strip()
