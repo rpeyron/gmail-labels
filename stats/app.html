@@ -91,6 +91,11 @@ body {
   font-size: 0.9em;
 }
 
+#maxTreeDepth {
+  width: 80px;
+  font-size: 0.9em;
+}
+
 select {
   padding: 5px 8px;
   border: 1px solid #d0d7de;
@@ -313,6 +318,23 @@ select {
       <option value="mid_invalid">Invalid Message-ID</option>
     </select>
 
+    <label class="chk" id="depthWrap" title="Max decomposition level for tree groupings" style="display:none">
+      Depth
+      <select id="maxTreeDepth">
+        <option value="">Sans limite</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+      </select>
+    </label>
+
     <button id="applyGrouping" class="icon-btn" title="Refresh">⟳</button>
 
     <label class="chk" title="Include Gmail system labels in grouping">
@@ -448,6 +470,7 @@ function saveConfig() {
     filter: document.getElementById("searchFilter").value,
     groups: getGroupingFields(),
     gmailSystem: document.getElementById("filterGmailSystemLabels").checked,
+    maxDepth: document.getElementById("maxTreeDepth").value,
   };
   try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
 }
@@ -477,6 +500,9 @@ function applyConfig(cfg) {
   if (typeof cfg.gmailSystem === "boolean") {
     document.getElementById("filterGmailSystemLabels").checked = cfg.gmailSystem;
   }
+  if (typeof cfg.maxDepth === "string" || typeof cfg.maxDepth === "number") {
+    document.getElementById("maxTreeDepth").value = cfg.maxDepth;
+  }
 }
 
 function updateSearchClear() {
@@ -495,6 +521,7 @@ document.getElementById("resetConfig").addEventListener("click", () => {
   document.getElementById("searchFilter").value = "";
   updateSearchClear();
   document.getElementById("filterGmailSystemLabels").checked = false;
+  document.getElementById("maxTreeDepth").value = "";
   document.getElementById("groupList").innerHTML = "";
   document.getElementById("jsonSelector").value = PATH_MAILS_JSON;
   currentJsonPath = PATH_MAILS_JSON;
@@ -558,6 +585,7 @@ Sortable.create(document.getElementById("groupList"), {
 });
 
 document.getElementById("filterGmailSystemLabels").addEventListener("change", applyGrouping);
+document.getElementById("maxTreeDepth").addEventListener("change", applyGrouping);
 
 function getGroupingFields() {
   return [...document.querySelectorAll("#groupList li")].map(li => li.dataset.field);
@@ -589,12 +617,26 @@ function commonDirPrefix(paths) {
   return p;
 }
 
+/* Profondeur max pour les regroupements tree (vide/invalid = illimité) */
+const TREE_FIELDS = new Set(["gmail_labels_tree", "source_file_tree"]);
+
+function getMaxTreeDepth() {
+  const v = parseInt(document.getElementById("maxTreeDepth").value, 10);
+  return v > 0 ? v : Infinity;
+}
+
+function updateDepthVisibility() {
+  const hasTree = getGroupingFields().some(f => TREE_FIELDS.has(f));
+  document.getElementById("depthWrap").style.display = hasTree ? "inline-flex" : "none";
+}
+
 /* ------------------------------
    Construction de l'arbre
 --------------------------------*/
 function buildTree(data, groupFields) {
 
   const root = { id: "root", label: "root", children: [], _isLeaf: false, level: 0, expanded: true };
+  const maxDepth = getMaxTreeDepth();
 
   const srcPrefix = groupFields.includes("source_file_tree")
     ? commonDirPrefix([...new Set(data.map(m => (m.source_file || "").replace(/\\/g, "/")).filter(Boolean))])
@@ -611,8 +653,7 @@ function buildTree(data, groupFields) {
         level: node.level + 1,
         expanded: false,
         mail_count: 0,
-        size: 0,
-        _unique: new Set()
+        size: 0
       };
       node.children.push(child);
     }
@@ -629,8 +670,7 @@ function buildTree(data, groupFields) {
       level: node.level + 1,
       expanded: false,
       mail_count: 1,
-      size: mail.size || 0,
-      _unique: new Set([leafId])
+      size: mail.size || 0
     });
   }
 
@@ -648,7 +688,7 @@ function buildTree(data, groupFields) {
             const hier = explodeLabelHierarchy(lbl);
             let n = baseNode;
 
-            hier.forEach(segment => {
+            hier.slice(0, maxDepth).forEach(segment => {
               const key = "gmail_labels_tree:" + segment;
               n = ensureChild(n, key, segment);
             });
@@ -685,7 +725,7 @@ function buildTree(data, groupFields) {
           const rel = norm.startsWith(srcPrefix) ? norm.slice(srcPrefix.length) : norm;
           const segments = rel.split("/").filter(Boolean);
           let n = baseNode;
-          segments.forEach(seg => {
+          segments.slice(0, maxDepth).forEach(seg => {
             n = ensureChild(n, "source_file_tree:" + seg, seg);
           });
           nextNodes.push(n);
@@ -715,42 +755,20 @@ function buildTree(data, groupFields) {
   --------------------------------*/
   function aggregate(node) {
     if (node._isLeaf) {
-      const ids = new Set([node.id]);
-      const size = node.size || 0;
-      node._unique = ids;
-      node.mail_count = ids.size;
-      node.size = size;
-      return { ids, size };
+      node.mail_count = 1;
+      return { count: 1, size: node.size || 0 };
     }
 
-    let ids = new Set();
+    let count = 0;
+    let totalSize = 0;
 
     node.children.forEach(child => {
       const agg = aggregate(child);
-      agg.ids.forEach(id => ids.add(id));
+      count += agg.count;
+      totalSize += agg.size;
     });
 
-    const sizeById = new Map();
-
-    function collectSizes(n) {
-      if (n._isLeaf) {
-        const id = n.id;
-        const s = n.size || 0;
-        if (!sizeById.has(id)) sizeById.set(id, s);
-      } else if (n.children) {
-        n.children.forEach(c => collectSizes(c));
-      }
-    }
-
-    collectSizes(node);
-
-    let totalSize = 0;
-    ids.forEach(id => {
-      totalSize += sizeById.get(id) || 0;
-    });
-
-    node._unique = ids;
-    node.mail_count = ids.size;
+    node.mail_count = count;
     node.size = totalSize;
 
     const isYearGroup = node.children.length > 0 &&
@@ -767,12 +785,10 @@ function buildTree(data, groupFields) {
       });
     }
 
-    return { ids, size: totalSize };
+    return { count, size: totalSize };
   }
 
   aggregate(root);
-
-  console.log("ARBRE COMPLET :", JSON.parse(JSON.stringify(root)));
 
   return root;
 }
@@ -818,7 +834,15 @@ let table = null;
 
 function initTable(flatData) {
   if (table) {
-    table.setData(flatData);
+    const el = table.rowManager.element;
+    const sp = { top: el ? el.scrollTop : 0, left: el ? el.scrollLeft : 0 };
+    Promise.resolve(table.setData(flatData)).then(() => {
+      const el2 = table.rowManager.element;
+      if (el2) {
+        el2.scrollTop = sp.top;
+        el2.scrollLeft = sp.left;
+      }
+    });
     return;
   }
 
@@ -963,6 +987,7 @@ function enrichFields(data) {
 const COMPUTE_FIELDS = new Set(["mid_dup", "mid_invalid", "dup_status"]);
 
 async function applyGrouping() {
+  updateDepthVisibility();
   saveConfig();
   showSpinner();
   await new Promise(r => setTimeout(r, 0));
