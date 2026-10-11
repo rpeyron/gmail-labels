@@ -33,3 +33,4 @@ vite.config.js
 vite.config.d.ts
 
 takeout-stats/data/**
+**/__pycache__

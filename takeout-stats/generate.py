@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+from email.header import decode_header, make_header
+import os
+import sys
+import json
+import mailbox
+from email.utils import parsedate_to_datetime
+from email import policy
+import argparse
+
+
+# 1. Run the script to generate the JSON data:   python generate.py [-o OUT] <mbox|maildir>...
+# 2. Serve the files with a local HTTP server:   python start-web.py
+# 3. Open the HTML viewer in a browser:         http://localhost:9000/
+
+PATH_MAILS_JSON = "data/mails.json"
+
+
+def resolve_output(name):
+    if os.path.isdir(name) or name.endswith(('/', '\\')):
+        return os.path.join(name, "mails.json")
+    if not os.path.splitext(name)[1]:
+        name += ".json"
+    return name
+
+
+def safe_header(msg, name):
+    raw = msg.get(name)
+    if raw is None:
+        return ""
+    try:
+        return str(make_header(decode_header(raw))).strip()
+    except Exception:
+        return str(raw).strip()
+
+def extract_gmail_labels(msg):
+    labels = safe_header(msg, "X-Gmail-Labels")
+    if labels:
+        return [l.strip() for l in labels.split(",") if l.strip()]
+    return []
+
+def extract_gmail_id(msg):
+    return (
+        safe_header(msg, "X-GM-THRID")
+        or safe_header(msg, "X-Gmail-Message-Id")
+        or safe_header(msg, "Message-ID")
+    )
+
+def safe_message_size(msg):
+    try:
+        return len(msg.as_bytes(policy=policy.default))
+    except Exception:
+        pass
+    try:
+        return len(msg.as_string().encode("utf-8", errors="replace"))
+    except Exception:
+        pass
+    return len(repr(msg).encode("utf-8", errors="replace"))
+
+def iter_maildir(root):
+    mdir = mailbox.Maildir(root, factory=None)
+    for key, msg in mdir.iteritems():
+        yield msg, os.path.join(root, "cur"), key
+
+def iter_mbox(path):
+    mbox = mailbox.mbox(path, factory=None)
+    for key, msg in mbox.iteritems():
+        yield msg, path, key
+
+def is_thunderbird_mbox(path):
+    """Check if file is Thunderbird mbox (no extension, not in skip list)."""
+    if not os.path.isfile(path):
+        return False
+    base = os.path.basename(path)
+    _, ext = os.path.splitext(base)
+    # Skip files with extensions and known non-mbox files
+    skip = {'.msf', '.dat', '.html', '.json', '.sbd'}
+    skip_names = {'msgfilterrules.dat', 'filterlog.html', 'mozmsgs'}
+    if ext in skip or base in skip_names or base.startswith('.'):
+        return False
+    return True
+
+def iter_thunderbird_tree(root):
+    """Recursively walk Thunderbird mbox directory tree."""
+    for entry in os.scandir(root):
+        if entry.is_file() and is_thunderbird_mbox(entry.path):
+            print(f"Processing: {entry.path}", file=sys.stderr)
+            try:
+                for msg, src, key in iter_mbox(entry.path):
+                    yield msg, src, key
+            except Exception as e:
+                print(f"Warning: skipped {entry.path}: {e}", file=sys.stderr)
+        elif entry.is_dir():
+            # Recurse into subdirs (including .sbd dirs)
+            if not entry.name.startswith('.') or entry.name.endswith('.sbd'):
+                yield from iter_thunderbird_tree(entry.path)
+
+def build_record(msg, src_path):
+    subject = safe_header(msg, "Subject")
+    from_ = safe_header(msg, "From")
+    to = safe_header(msg, "To")
+    date_raw = safe_header(msg, "Date")
+
+    dt = None
+    year = None
+    if date_raw:
+        try:
+            dt = parsedate_to_datetime(date_raw)
+            year = dt.year
+        except Exception:
+            pass
+
+    mid = safe_header(msg, "Message-ID")
+    gmail_labels = extract_gmail_labels(msg)
+    gmail_id = extract_gmail_id(msg)
+    size = safe_message_size(msg)
+
+    return {
+        "subject": subject,
+        "from": from_,
+        "to": to,
+        "date": dt.isoformat() if dt else None,
+        "year": year,
+        "message_id": mid,
+        "gmail_labels": gmail_labels,
+        "gmail_id": gmail_id,
+        "size": size,
+        "source_file": src_path,
+    }
+
+def parse_source(path):
+    if os.path.isdir(path):
+        # Detect Maildir (has cur/new/tmp subdirs) vs Thunderbird tree
+        has_maildir_structure = all(
+            os.path.isdir(os.path.join(path, d)) for d in ['cur', 'new', 'tmp']
+        )
+        if has_maildir_structure:
+            for msg, src, key in iter_maildir(path):
+                yield build_record(msg, src)
+        else:
+            # Treat as Thunderbird mbox tree
+            for msg, src, key in iter_thunderbird_tree(path):
+                yield build_record(msg, src)
+    else:
+        for msg, src, key in iter_mbox(path):
+            yield build_record(msg, src)
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate mails JSON from mbox|maildir|thunderbird-tree sources")
+    parser.add_argument("-o", "--output", default=PATH_MAILS_JSON,
+                        help="output JSON file (default: data/mails.json); "
+                             "a directory places mails.json inside it; "
+                             ".json extension added if missing")
+    parser.add_argument("sources", nargs="+", metavar="<mbox|maildir|thunderbird-tree>")
+    args = parser.parse_args()
+
+    json_path = resolve_output(args.output)
+    records = []
+
+    for src in args.sources:
+        # Strip quotes from path (shell escaping artifacts)
+        src = src.strip('"').strip("'")
+
+        if not os.path.exists(src):
+            print(f"Error: path does not exist: {src}", file=sys.stderr)
+            sys.exit(1)
+
+        for rec in parse_source(src):
+            records.append(rec)
+
+    dirname = os.path.dirname(json_path)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(records, f, ensure_ascii=False)
+
+    print(f"JSON écrit : {json_path} ({len(records)} mails)")
+
+if __name__ == "__main__":
+    main()

@@ -50,17 +50,19 @@ Standalone Python tools (no dependency on the app) to analyze Gmail Takeout `.mb
 
 | Tool | Purpose |
 |---|---|
-| `mbox-gen-html.py` | Render messages stats to JSON data for the HTML viewer |
-| `mbox-gen-html.html` | Advanced statistics browser explorer: view, filter, sort, group mails statistics |
+| `generate.py` | Render messages stats to JSON data for the HTML viewer |
+| `app.html` | Advanced statistics browser explorer: view, filter, sort, group mails statistics |
+| `start-web.py` | Local HTTP server for the viewer (opens browser; `--no-browser` to disable) |
+| `json-mbox-diff.py` | Diff two mails.json synthesis files |
+| `json-mbox-enrich.py` | Add/refresh mid_dup and mid_invalid fields on mails.json files |
 | `mbox-stats.py` | Basic statistics per year and Gmail label (count, size) — robust slow parser (`mailbox`) |
 | `mbox-stats-fast.py` | Same basic statistics with a fast manual line-based parser for very large mbox files |
 
 Typical run for the viewer:
 
 ```bash
-python mbox-gen-html.py <mbox|maildir>...
-python -m http.server 9000
-# open http://localhost:9000/mbox-gen-html.html
+python generate.py [-o OUT] <mbox|maildir>...   # OUT defaults to data/mails.json; dir → mails.json inside; .json appended if no extension
+python start-web.py            # opens http://localhost:9000/ (use --no-browser to disable)
 ```
 
 Edit the `MBOX_FILE` path at the top of the stats scripts before running them.
