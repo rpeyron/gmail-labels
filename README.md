@@ -1,4 +1,4 @@
-![AI Generated](https://raw.githubusercontent.com/rpeyron/rpeyron/master/images/badges/badge-ia.svg)
+﻿![AI Generated](https://raw.githubusercontent.com/rpeyron/rpeyron/master/images/badges/badge-ia.svg)
 
 # Gmail Label Manager
 
@@ -44,7 +44,7 @@ Notes: test-mode refresh tokens expire after ~7 days (sign in again as needed); 
 | `npm run build` | Production build |
 | `npm test` | Run tests |
 
-## takeout-stats — companion tools
+## stats — companion tools
 
 Standalone Python tools (no dependency on the app) to analyze Gmail Takeout `.mbox` exports:
 
@@ -61,7 +61,7 @@ Standalone Python tools (no dependency on the app) to analyze Gmail Takeout `.mb
 Typical run for the viewer:
 
 ```bash
-python generate.py [-o OUT] <mbox|maildir>...   # OUT defaults to data/mails.json; dir → mails.json inside; .json appended if no extension
+python generate.py [-o OUT] <mbox|maildir>...   # bare name or name.ext -> data/; with a directory -> that directory; .json appended if missing
 python start-web.py            # opens http://localhost:9000/ (use --no-browser to disable)
 ```
 

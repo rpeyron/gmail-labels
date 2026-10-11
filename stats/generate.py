@@ -21,6 +21,8 @@ def resolve_output(name):
         return os.path.join(name, "mails.json")
     if not os.path.splitext(name)[1]:
         name += ".json"
+    if not os.path.dirname(name):
+        name = os.path.join("data", name)
     return name
 
 
@@ -150,7 +152,8 @@ def main():
     parser.add_argument("-o", "--output", default=PATH_MAILS_JSON,
                         help="output JSON file (default: data/mails.json); "
                              "a directory places mails.json inside it; "
-                             ".json extension added if missing")
+                             ".json extension added if missing; "
+                             "bare filenames go into data/")
     parser.add_argument("sources", nargs="+", metavar="<mbox|maildir|thunderbird-tree>")
     args = parser.parse_args()
 

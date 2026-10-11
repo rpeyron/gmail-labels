@@ -1,4 +1,4 @@
-# dependencies
+﻿# dependencies
 node_modules/
 
 # production builds
@@ -32,5 +32,5 @@ coverage/
 vite.config.js
 vite.config.d.ts
 
-takeout-stats/data/**
+stats/data/**
 **/__pycache__
