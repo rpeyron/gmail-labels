@@ -306,6 +306,8 @@ select {
     <select id="groupAdd" title="Add grouping criterion">
       <option value="">+ Add…</option>
       <option value="year">Year</option>
+      <option value="year_date">Year (date)</option>
+      <option value="month">Month</option>
       <option value="gmail_labels">Gmail labels (flat)</option>
       <option value="gmail_labels_tree">Gmail labels (tree)</option>
       <option value="from">From</option>
@@ -443,6 +445,22 @@ async function loadData() {
   try {
     const resp = await fetch(currentJsonPath);
     const data = await resp.json();
+    // month / year_date computed client-side (month: real_date preferred, fallback date)
+    data.forEach(m => {
+      m.month = "";
+      m.year_date = "";
+      const raw = m.real_date || m.date;
+      if (raw) {
+        const d = new Date(raw);
+        if (!isNaN(d)) {
+          m.month = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+        }
+      }
+      if (m.date) {
+        const d2 = new Date(m.date);
+        if (!isNaN(d2)) m.year_date = String(d2.getFullYear());
+      }
+    });
     RAW_DATA = data;
     fieldsEnriched = false;
 

@@ -97,6 +97,22 @@ def iter_thunderbird_tree(root):
             if not entry.name.startswith('.') or entry.name.endswith('.sbd'):
                 yield from iter_thunderbird_tree(entry.path)
 
+def extract_real_date(msg):
+    """Latest date found in Received headers (after the last ';'), or None."""
+    best = None
+    for received in msg.get_all("Received") or []:
+        if ";" not in received:
+            continue
+        date_part = received.rsplit(";", 1)[1].strip()
+        try:
+            dt = parsedate_to_datetime(date_part)
+        except Exception:
+            continue
+        if best is None or (dt.replace(tzinfo=None) if dt.tzinfo else dt) > \
+                           (best.replace(tzinfo=None) if best.tzinfo else best):
+            best = dt
+    return best
+
 def build_record(msg, src_path):
     subject = safe_header(msg, "Subject")
     from_ = safe_header(msg, "From")
@@ -104,13 +120,15 @@ def build_record(msg, src_path):
     date_raw = safe_header(msg, "Date")
 
     dt = None
-    year = None
     if date_raw:
         try:
             dt = parsedate_to_datetime(date_raw)
-            year = dt.year
         except Exception:
             pass
+
+    real_dt = extract_real_date(msg)
+    year_dt = real_dt if real_dt is not None else dt
+    year = year_dt.year if year_dt else None
 
     mid = safe_header(msg, "Message-ID")
     gmail_labels = extract_gmail_labels(msg)
@@ -122,6 +140,7 @@ def build_record(msg, src_path):
         "from": from_,
         "to": to,
         "date": dt.isoformat() if dt else None,
+        "real_date": real_dt.isoformat() if real_dt else None,
         "year": year,
         "message_id": mid,
         "gmail_labels": gmail_labels,
