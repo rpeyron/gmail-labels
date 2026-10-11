@@ -51,17 +51,39 @@ body {
   max-width: 220px;
 }
 
+#searchWrap {
+  position: relative;
+  display: inline-block;
+}
 #searchFilter {
   max-width: 200px;
-  padding: 5px 10px;
+  padding: 5px 24px 5px 10px;
   border: 1px solid #d0d7de;
   border-radius: 6px;
   font-size: 0.9em;
+  box-sizing: border-box;
 }
 #searchFilter:focus {
   outline: none;
   border-color: #4c8bf5;
   box-shadow: 0 0 0 2px rgba(76,139,245,.2);
+}
+#searchClear {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: #57606a;
+  padding: 3px 5px;
+  display: none;
+}
+#searchClear:hover {
+  color: #1f2328;
 }
 
 #groupAdd {
@@ -269,7 +291,10 @@ select {
       <option value="">Select JSON file…</option>
     </select>
 
-    <input type="text" id="searchFilter" placeholder="Filter…">
+    <span id="searchWrap">
+      <input type="text" id="searchFilter" placeholder="Filter…">
+      <button id="searchClear" title="Clear filter" type="button">×</button>
+    </span>
 
     <ul id="groupList"></ul>
 
@@ -284,6 +309,7 @@ select {
       <option value="source_file_tree">Source file (tree)</option>
       <option value="diff_status">Diff status</option>
       <option value="mid_dup">Duplicate Message-ID</option>
+      <option value="dup_status">Duplicate (yes/no)</option>
       <option value="mid_invalid">Invalid Message-ID</option>
     </select>
 
@@ -293,6 +319,8 @@ select {
       <input type="checkbox" id="filterGmailSystemLabels">
       GMail Labels
     </label>
+
+    <button id="resetConfig" class="icon-btn" title="Reset configuration (clears saved preferences)">🧹</button>
   </div>
 </div>
 
@@ -394,6 +422,7 @@ async function loadData() {
     const resp = await fetch(currentJsonPath);
     const data = await resp.json();
     RAW_DATA = data;
+    fieldsEnriched = false;
 
     // Reset grouping on first load
     const groupList = document.getElementById('groupList');
@@ -408,7 +437,74 @@ async function loadData() {
   }
 }
 
-detectServer().then(() => loadData());
+/* ------------------------------
+   Configuration persistée (localStorage)
+--------------------------------*/
+const CONFIG_KEY = "mail-explorer-config";
+
+function saveConfig() {
+  const cfg = {
+    jsonPath: currentJsonPath,
+    filter: document.getElementById("searchFilter").value,
+    groups: getGroupingFields(),
+    gmailSystem: document.getElementById("filterGmailSystemLabels").checked,
+  };
+  try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+}
+
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch (e) { return null; }
+}
+
+function applyConfig(cfg) {
+  if (!cfg || typeof cfg !== "object") return;
+  if (cfg.jsonPath) {
+    const sel = document.getElementById("jsonSelector");
+    if ([...sel.options].some(o => o.value === cfg.jsonPath)) {
+      currentJsonPath = cfg.jsonPath;
+      sel.value = cfg.jsonPath;
+    }
+  }
+  if (Array.isArray(cfg.groups)) {
+    const ul = document.getElementById("groupList");
+    ul.innerHTML = "";
+    cfg.groups.forEach(g => addGroupingItem(g));
+  }
+  if (typeof cfg.filter === "string") {
+    document.getElementById("searchFilter").value = cfg.filter;
+    updateSearchClear();
+  }
+  if (typeof cfg.gmailSystem === "boolean") {
+    document.getElementById("filterGmailSystemLabels").checked = cfg.gmailSystem;
+  }
+}
+
+function updateSearchClear() {
+  const v = document.getElementById("searchFilter").value;
+  document.getElementById("searchClear").style.display = v ? "block" : "none";
+}
+
+document.getElementById("searchClear").addEventListener("click", () => {
+  document.getElementById("searchFilter").value = "";
+  updateSearchClear();
+  applyGrouping();
+});
+
+document.getElementById("resetConfig").addEventListener("click", () => {
+  try { localStorage.removeItem(CONFIG_KEY); } catch (e) { /* ignore */ }
+  document.getElementById("searchFilter").value = "";
+  updateSearchClear();
+  document.getElementById("filterGmailSystemLabels").checked = false;
+  document.getElementById("groupList").innerHTML = "";
+  document.getElementById("jsonSelector").value = PATH_MAILS_JSON;
+  currentJsonPath = PATH_MAILS_JSON;
+  loadData();
+});
+
+detectServer().then(() => {
+  applyConfig(loadConfig());
+  loadData();
+});
 
 /* ------------------------------
    Taille human-readable
@@ -813,7 +909,10 @@ function filterByText(data) {
   return data.filter(mail => JSON.stringify(mail).toLowerCase().includes(q));
 }
 
-document.getElementById("searchFilter").addEventListener("input", debounce(() => applyGrouping(), 300));
+document.getElementById("searchFilter").addEventListener("input", debounce(() => {
+  updateSearchClear();
+  applyGrouping();
+}, 300));
 
 function debounce(fn, ms) {
   let t;
@@ -834,28 +933,42 @@ function midInvalid(raw) {
   return "";
 }
 
+let fieldsEnriched = false;
+
 function enrichFields(data) {
+  if (fieldsEnriched) return;
   const counts = new Map();
+  const sources = new Map();
   data.forEach(m => {
     const mid = m.message_id;
-    if (mid) counts.set(mid, (counts.get(mid) || 0) + 1);
+    if (mid) {
+      counts.set(mid, (counts.get(mid) || 0) + 1);
+      if (!sources.has(mid)) sources.set(mid, new Set());
+      if (m.source_file) sources.get(mid).add(m.source_file);
+    }
   });
   data.forEach(m => {
     const mid = m.message_id;
     m.mid_dup = (mid && counts.get(mid) > 1) ? mid : "";
     m.mid_invalid = midInvalid(mid);
+    m.dup_status = m.mid_dup ? "yes" : "no";
+    m.dup_sources = m.mid_dup ? [...(sources.get(mid) || [])].join(", ") : "";
   });
+  fieldsEnriched = true;
 }
 
 /* ------------------------------
    Application du regroupement
 --------------------------------*/
+const COMPUTE_FIELDS = new Set(["mid_dup", "mid_invalid", "dup_status"]);
+
 async function applyGrouping() {
+  saveConfig();
   showSpinner();
   await new Promise(r => setTimeout(r, 0));
 
   const fields = getGroupingFields();
-  if (fields.includes("mid_dup") || fields.includes("mid_invalid")) {
+  if (fields.some(f => COMPUTE_FIELDS.has(f))) {
     enrichFields(RAW_DATA);
   }
   const filtered = filterByText(RAW_DATA);

@@ -7,6 +7,7 @@ Writes data/diff-<A>-vs-<B>.json with diff_status:
   empty/placeholder mids like "", "   ", "null" treated as missing)
   both_no_mid (unmatched by mid, matched on subject+date+from when at least
   one side has no message_id)
+  dup-A / dup-B (extra within-file copies of an already-emitted message_id)
 """
 import json
 import os
@@ -96,17 +97,19 @@ def main():
     for m, s, mid in zip(a, status_a, a_mid):
         if mid:
             if mid in emitted_a:
-                continue  # duplicate record within A (same message_id)
+                records.append({**m, "diff_status": "dup-A"})
+                continue
             emitted_a.add(mid)
         records.append({**m, "diff_status": s})
     emitted_b = set()
     for m, s, mid in zip(b, status_b, b_mid):
-        if s == "skip":
-            continue
         if mid:
             if mid in emitted_b:
-                continue  # duplicate record within B (same message_id)
+                records.append({**m, "diff_status": "dup-B"})
+                continue
             emitted_b.add(mid)
+        if s == "skip":
+            continue
         records.append({**m, "diff_status": s})
 
     name_a = os.path.splitext(os.path.basename(path_a))[0]
@@ -120,7 +123,8 @@ def main():
     counts = Counter(r["diff_status"] for r in records)
     print(f"Écrit : {out}")
     print(f"  communs : {counts['both']} | communs sans mid : {counts['both_no_mid']}"
-          f" | seulement A : {counts['only-A']} | seulement B : {counts['only-B']}")
+          f" | seulement A : {counts['only-A']} | seulement B : {counts['only-B']}"
+          f" | doublons A : {counts['dup-A']} | doublons B : {counts['dup-B']}")
 
 
 if __name__ == "__main__":

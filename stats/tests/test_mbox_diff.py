@@ -54,7 +54,7 @@ assert sorted(by_status.get("both", [])) == ["S1", "S8"], by_status
 assert sorted(by_status.get("both_no_mid", [])) == ["S2", "S5", "S6", "S7"], by_status
 assert sorted(by_status.get("only-A", [])) == ["S3", "S4"], by_status
 assert sorted(by_status.get("only-B", [])) == ["S5", "S9"], by_status
-assert "S1dup" not in {s for v in by_status.values() for s in v}, "dup mid not skipped"
-assert "S9dup" not in {s for v in by_status.values() for s in v}, "dup mid not skipped"
+assert sorted(by_status.get("dup-A", [])) == ["S1dup"], by_status
+assert sorted(by_status.get("dup-B", [])) == ["S9dup"], by_status
 
 print("OK")
