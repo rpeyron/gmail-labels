@@ -67,6 +67,17 @@ python start-web.py            # opens http://localhost:9000/ (use --no-browser 
 
 Edit the `MBOX_FILE` path at the top of the stats scripts before running them.
 
+## tools — mailbox maintenance
+
+Standalone Python utilities for Thunderbird / Netscape mail-store trees:
+
+| Tool | Purpose |
+|---|---|
+| `tools/clean-empty-mbox/clean_empty_mbox.py` | Recursively delete empty (0-byte) mboxes and their `.msf` from a Thunderbird tree, then remove emptied `.sbd` folders (deepest-first); empty parent mboxes are kept while their `.sbd` still has children; supports `--dry-run` |
+| `tools/mbox-merge/merge_thunderbird.py` | Merge several Thunderbird mail-store trees into one output directory, concatenating mboxes sharing the same relative path and preserving the folder layout (`.msf`/`.html`/`.log` ignored) |
+| `tools/snm_tools/snm_to_mbox.py` | Convert a legacy Netscape 4 `.snm` mailbox to standard mbox format |
+
+
 ## More
 
 Mainly developed with IA (Copilot & Claude free plans)
