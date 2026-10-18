@@ -3,11 +3,13 @@
 
 Usage: python json-mbox-diff.py <fileA.json> <fileB.json>
 Writes data/diff-<A>-vs-<B>.json with diff_status:
-  only-A / only-B / both (matched on message_id, <> and whitespace normalized;
-  empty/placeholder mids like "", "   ", "null" treated as missing)
+  only-A / only-B (matched on message_id, <> and whitespace normalized;
+  empty/placeholder mids like "", "   ", "null" treated as missing;
+  duplicates of a message_id absent from the other file are all kept here)
+  both (normalized message_id present in both files — every occurrence is
+  classified both, whatever the number of duplicates on each side)
   both_no_mid (unmatched by mid, matched on subject+date+from when at least
   one side has no message_id)
-  dup-A / dup-B (extra within-file copies of an already-emitted message_id)
 """
 import json
 import os
@@ -93,22 +95,14 @@ def main():
         pair(k)
 
     records = []
-    emitted_a = set()
-    for m, s, mid in zip(a, status_a, a_mid):
-        if mid:
-            if mid in emitted_a:
-                records.append({**m, "diff_status": "dup-A"})
-                continue
-            emitted_a.add(mid)
+    for m, s in zip(a, status_a):
         records.append({**m, "diff_status": s})
-    emitted_b = set()
     for m, s, mid in zip(b, status_b, b_mid):
-        if mid:
-            if mid in emitted_b:
-                records.append({**m, "diff_status": "dup-B"})
-                continue
-            emitted_b.add(mid)
         if s == "skip":
+            # pass-1 skip: mid present in A too → common, keep every occurrence
+            # (pass-2 skip = both_no_mid twin, already represented by its A record)
+            if mid and mid in ids_a:
+                records.append({**m, "diff_status": "both"})
             continue
         records.append({**m, "diff_status": s})
 
@@ -123,8 +117,7 @@ def main():
     counts = Counter(r["diff_status"] for r in records)
     print(f"Écrit : {out}")
     print(f"  communs : {counts['both']} | communs sans mid : {counts['both_no_mid']}"
-          f" | seulement A : {counts['only-A']} | seulement B : {counts['only-B']}"
-          f" | doublons A : {counts['dup-A']} | doublons B : {counts['dup-B']}")
+          f" | seulement A : {counts['only-A']} | seulement B : {counts['only-B']}")
 
 
 if __name__ == "__main__":

@@ -50,11 +50,10 @@ by_status = {}
 for r in result:
     by_status.setdefault(r["diff_status"], []).append(r["subject"])
 
-assert sorted(by_status.get("both", [])) == ["S1", "S8"], by_status
+assert sorted(by_status.get("both", [])) == ["S1", "S1", "S1dup", "S8", "S8"], by_status
 assert sorted(by_status.get("both_no_mid", [])) == ["S2", "S5", "S6", "S7"], by_status
 assert sorted(by_status.get("only-A", [])) == ["S3", "S4"], by_status
-assert sorted(by_status.get("only-B", [])) == ["S5", "S9"], by_status
-assert sorted(by_status.get("dup-A", [])) == ["S1dup"], by_status
-assert sorted(by_status.get("dup-B", [])) == ["S9dup"], by_status
+assert sorted(by_status.get("only-B", [])) == ["S5", "S9", "S9dup"], by_status
+assert "dup-A" not in by_status and "dup-B" not in by_status, by_status
 
 print("OK")
