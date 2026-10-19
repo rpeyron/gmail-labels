@@ -69,14 +69,14 @@ Edit the `MBOX_FILE` path at the top of the stats scripts before running them.
 
 ## tools — mailbox maintenance
 
-Standalone Python utilities for Thunderbird / Netscape mail-store trees:
+Standalone Python utilities for mbox/sbd mail-store trees (e.g. Thunderbird, Netscape):
 
 | Tool | Purpose |
 |---|---|
-| `tools/clean-empty-mbox/clean_empty_mbox.py` | Recursively delete empty (0-byte) mboxes and their `.msf` from a Thunderbird tree, then remove emptied `.sbd` folders (deepest-first); empty parent mboxes are kept while their `.sbd` still has children; supports `--dry-run` |
-| `tools/mbox-merge/merge_thunderbird.py` | Merge several Thunderbird mail-store trees into one output directory, concatenating mboxes sharing the same relative path and preserving the folder layout (`.msf`/`.html`/`.log` ignored) |
+| `tools/clean-empty-mbox/clean_empty_mbox.py` | Recursively delete empty (0-byte) mboxes and their `.msf` from an mbox/sbd tree, then remove emptied `.sbd` folders (deepest-first); empty parent mboxes are kept while their `.sbd` still has children; supports `--dry-run` |
+| `tools/mbox-merge/merge_mbox.py` | Merge several mbox/sbd mail-store trees into one output directory, concatenating mboxes sharing the same relative path and preserving the folder layout (`.msf`/`.html`/`.log` ignored) |
+| [`tools/mbox-encoding/mbox-encoding-fix.py`](tools/mbox-encoding/README.md) | Check and repair mbox/sbd encoding issues |
 | `tools/snm_tools/snm_to_mbox.py` | Convert a legacy Netscape 4 `.snm` mailbox to standard mbox format |
-
 
 ## More
 
