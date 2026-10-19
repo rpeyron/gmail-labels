@@ -2,10 +2,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from merge_thunderbird import expand_input_patterns, main, merge_trees
+from merge_mbox import expand_input_patterns, main, merge_trees
 
 
-class MergeThunderbirdTests(unittest.TestCase):
+class MergeMboxTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
@@ -65,7 +65,7 @@ class MergeThunderbirdTests(unittest.TestCase):
     def test_expands_wildcard_input_directories(self) -> None:
         (self.first / "Inbox").write_bytes(b"From first\n")
         (self.second / "Inbox").write_bytes(b"From second\n")
-        (self.root / "dedup_with_thunderbird.log").write_text("log")
+        (self.root / "dedup_with_mailbox.log").write_text("log")
         self.assertEqual(
             expand_input_patterns([self.root / "*"]),
             [self.first, self.second],

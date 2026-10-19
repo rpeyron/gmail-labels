@@ -69,8 +69,8 @@ def iter_mbox(path):
     for key, msg in mbox.iteritems():
         yield msg, path, key
 
-def is_thunderbird_mbox(path):
-    """Check if file is Thunderbird mbox (no extension, not in skip list)."""
+def is_mbox_file(path):
+    """Check if file is an mbox/sbd tree file (no extension, not in skip list)."""
     if not os.path.isfile(path):
         return False
     base = os.path.basename(path)
@@ -82,10 +82,10 @@ def is_thunderbird_mbox(path):
         return False
     return True
 
-def iter_thunderbird_tree(root):
-    """Recursively walk Thunderbird mbox directory tree."""
+def iter_mbox_tree(root):
+    """Recursively walk mbox/sbd directory tree."""
     for entry in os.scandir(root):
-        if entry.is_file() and is_thunderbird_mbox(entry.path):
+        if entry.is_file() and is_mbox_file(entry.path):
             print(f"Processing: {entry.path}", file=sys.stderr)
             try:
                 for msg, src, key in iter_mbox(entry.path):
@@ -95,7 +95,7 @@ def iter_thunderbird_tree(root):
         elif entry.is_dir():
             # Recurse into subdirs (including .sbd dirs)
             if not entry.name.startswith('.') or entry.name.endswith('.sbd'):
-                yield from iter_thunderbird_tree(entry.path)
+                yield from iter_mbox_tree(entry.path)
 
 def extract_real_date(msg):
     """Latest date found in Received headers (after the last ';'), or None."""
@@ -152,7 +152,7 @@ def build_record(msg, src_path):
 
 def parse_source(path):
     if os.path.isdir(path):
-        # Detect Maildir (has cur/new/tmp subdirs) vs Thunderbird tree
+        # Detect Maildir (has cur/new/tmp subdirs) vs mbox/sbd tree
         has_maildir_structure = all(
             os.path.isdir(os.path.join(path, d)) for d in ['cur', 'new', 'tmp']
         )
@@ -160,21 +160,21 @@ def parse_source(path):
             for msg, src, key in iter_maildir(path):
                 yield build_record(msg, src)
         else:
-            # Treat as Thunderbird mbox tree
-            for msg, src, key in iter_thunderbird_tree(path):
+            # Treat as mbox/sbd tree
+            for msg, src, key in iter_mbox_tree(path):
                 yield build_record(msg, src)
     else:
         for msg, src, key in iter_mbox(path):
             yield build_record(msg, src)
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate mails JSON from mbox|maildir|thunderbird-tree sources")
+    parser = argparse.ArgumentParser(description="Generate mails JSON from mbox|maildir|mbox-tree sources")
     parser.add_argument("-o", "--output", default=PATH_MAILS_JSON,
                         help="output JSON file (default: data/mails.json); "
                              "a directory places mails.json inside it; "
                              ".json extension added if missing; "
                              "bare filenames go into data/")
-    parser.add_argument("sources", nargs="+", metavar="<mbox|maildir|thunderbird-tree>")
+    parser.add_argument("sources", nargs="+", metavar="<mbox|maildir|mbox-tree>")
     args = parser.parse_args()
 
     json_path = resolve_output(args.output)

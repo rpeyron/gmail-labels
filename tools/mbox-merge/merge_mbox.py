@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Merge Thunderbird mail-store trees while preserving their folder layout."""
+"""Merge mbox/sbd mail-store trees while preserving their folder layout."""
 
-# python .\merge_thunderbird.py --output .\MailsRecover-merged .\MailsRecover\*
+# python .\merge_mbox.py --output .\MailsRecover-merged .\MailsRecover\*
 
 
 from __future__ import annotations
@@ -173,7 +173,7 @@ def file_contents_equal(first: Path, second: Path) -> bool:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Merge multiple Thunderbird mail trees. "
+            "Merge multiple mbox/sbd mail trees. "
             "Mbox files with the same relative path are concatenated."
         ),
         epilog=(
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         "inputs",
         nargs="+",
         type=Path,
-        help="Thunderbird root directories to merge",
+        help="mbox/sbd root directories to merge",
     )
     arguments = parser.parse_args(argv)
 

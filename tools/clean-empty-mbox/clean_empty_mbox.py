@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove empty mbox files (and their indexes) from a Thunderbird mail-store."""
+"""Remove empty mbox files (and their indexes) from an mbox/sbd mail-store."""
 
 # python .\clean_empty_mbox.py --dry-run "C:\Users\me\AppData\Roaming\Thunderbird\Profiles\xxx\Mail\Local Folders"
 
@@ -43,7 +43,7 @@ def clean_tree(root: Path, dry_run: bool = False) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("root", type=Path, help="Thunderbird Mail directory to clean")
+    parser.add_argument("root", type=Path, help="mbox/sbd directory to clean")
     parser.add_argument("-n", "--dry-run", action="store_true", help="only list what would be removed")
     args = parser.parse_args(argv)
 
