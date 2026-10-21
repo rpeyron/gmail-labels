@@ -277,10 +277,22 @@ class EncodingTests(unittest.TestCase):
         )
         try:
             self.assertEqual(len(suspect_store), 0)
-            self.assertEqual(len(corrected_store), 0)
+            self.assertEqual(len(corrected_store), 1)
+            fixed_message = parser.parsebytes(corrected_store.get_file(0).read())
         finally:
             suspect_store.close()
             corrected_store.close()
+        html_part = next(
+            part for part in fixed_message.walk()
+            if part.get_content_type() == "text/html"
+        )
+        self.assertIn("Désinscription", html_part.get_content())
+        self.assertTrue(
+            any(
+                "repaired reversible mojibake" in str(value)
+                for value in fixed_message.get_all("X-Encoding-Correction", [])
+            )
+        )
 
     def test_recovers_replacement_from_matching_html_alternative(self) -> None:
         plain = (
@@ -1118,6 +1130,7 @@ class EncodingTests(unittest.TestCase):
             source,
             suspects_mbox=suspects,
             corrected_mbox=corrected,
+            only_unresolved=True,
         )
 
         self.assertEqual(findings, [])
@@ -1305,7 +1318,7 @@ class EncodingTests(unittest.TestCase):
         self.assertIn("Société coopérative à capital variable", body)
         self.assertIn("\r\nà capital variable", body)
 
-    def test_valid_utf8_html_is_not_reported_but_known_signature_markers_are_removed(
+    def test_valid_utf8_html_reports_lost_character_and_removes_signature_marker(
         self,
     ) -> None:
         source = self.write_mbox(
@@ -1318,25 +1331,33 @@ class EncodingTests(unittest.TestCase):
             b"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd"
             b"</span>\n",
         )
+        suspects = self.output_root / "valid-utf8-html-suspects.mbox"
         corrected = self.output_root / "valid-utf8-html-corrected.mbox"
 
-        _, findings = check_tree(source, corrected_mbox=corrected)
+        _, findings = check_tree(
+            source,
+            suspects_mbox=suspects,
+            corrected_mbox=corrected,
+            only_unresolved=True,
+        )
 
-        self.assertEqual(findings, [])
+        self.assertTrue(
+            any("U+FFFD" in finding.problem for finding in findings)
+        )
         parser = BytesParser(policy=policy.default)
-        corrected_store = mailbox.mbox(
-            corrected, factory=lambda stream: parser.parse(stream)
+        suspect_store = mailbox.mbox(
+            suspects, factory=lambda stream: parser.parse(stream)
         )
         try:
-            self.assertEqual(len(corrected_store), 1)
-            message = parser.parsebytes(corrected_store.get_file(0).read())
+            self.assertEqual(len(suspect_store), 1)
+            message = parser.parsebytes(suspect_store.get_file(0).read())
         finally:
-            corrected_store.close()
+            suspect_store.close()
         html_part = next(
             part for part in message.walk()
             if part.get_content_type() == "text/html"
         )
-        self.assertIn("FranÃ§ais \ufffd", html_part.get_content())
+        self.assertIn("Fran\u00e7ais", html_part.get_content())
         self.assertNotIn("\ufffd\ufffd\ufffd\ufffd", html_part.get_content())
 
     def test_recovers_danaides_from_matching_html_alternative(self) -> None:
@@ -1629,6 +1650,253 @@ class EncodingTests(unittest.TestCase):
         finally:
             suspects.close()
             corrected.close()
+
+    def test_in_place_handles_non_ascii_envelope_without_crashing(self) -> None:
+        mbox = self.write_mbox(
+            "non-ascii-envelope.mbox",
+            b"From s\xc3\xa9nder@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: =?utf-8?b?Q2Fmw4PCqQ==?=\n"
+            b"Content-Type: text/plain; charset=utf-8\n\n"
+            b"Fran\xc3\x83\xc2\xa7ais\n",
+        )
+
+        count, findings = check_tree(mbox, in_place=True, only_unresolved=True)
+
+        self.assertEqual(count, 1)
+        self.assertEqual(findings, [])
+        parser = BytesParser(policy=policy.default)
+        store = mailbox.mbox(mbox, factory=lambda stream: parser.parse(stream))
+        try:
+            self.assertEqual(store[0]["Subject"], "Caf\u00e9")
+        finally:
+            store.close()
+
+    def test_corrected_and_suspects_mboxes_keep_the_original_envelope(self) -> None:
+        source = self.write_mbox(
+            "envelope.mbox",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: =?utf-8?b?Q2Fmw4PCqQ==?=\n"
+            b"Content-Type: text/plain; charset=utf-8\n\n"
+            b"Fran\xc3\x83\xc2\xa7ais\n",
+        )
+        corrected = self.output_root / "envelope-corrected.mbox"
+
+        check_tree(source, corrected_mbox=corrected)
+
+        self.assertTrue(
+            corrected.read_bytes().startswith(
+                b"From sender@example.com Sat Jan  1 00:00:00 2022"
+            )
+        )
+
+    def test_repaired_part_keeps_its_other_content_headers(self) -> None:
+        source = self.write_mbox(
+            "part-headers",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: x\nMIME-Version: 1.0\n"
+            b"Content-Type: multipart/related; boundary=x\n\n"
+            b"--x\nContent-Type: text/plain; charset=utf-8\n"
+            b"Content-ID: <part1@example.com>\n"
+            b"Content-Location: http://example.com/a.txt\n"
+            b"Content-Description: my description\n"
+            b"Content-Disposition: inline\n\n"
+            b"Fran\xc3\x83\xc2\xa7ais\n"
+            b"--x--\n",
+        )
+        corrected = self.output_root / "part-headers-corrected.mbox"
+
+        check_tree(source, corrected_mbox=corrected)
+
+        parser = BytesParser(policy=policy.default)
+        store = mailbox.mbox(corrected, factory=lambda stream: parser.parse(stream))
+        try:
+            message = parser.parsebytes(store.get_file(0).read())
+        finally:
+            store.close()
+        part = next(
+            part for part in message.walk()
+            if part.get_content_type() == "text/plain"
+        )
+        self.assertEqual(part["Content-ID"], "<part1@example.com>")
+        self.assertEqual(part["Content-Location"], "http://example.com/a.txt")
+        self.assertEqual(part["Content-Description"], "my description")
+        self.assertEqual(part["Content-Disposition"], "inline")
+
+    def test_repaired_part_keeps_its_transfer_encoding(self) -> None:
+        source = self.write_mbox(
+            "transfer-encoding",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: x\n"
+            b"Content-Type: text/plain; charset=utf-8\n"
+            b"Content-Transfer-Encoding: quoted-printable\n\n"
+            b"Fran=C3=83=C2=A7ais\n",
+        )
+        corrected = self.output_root / "transfer-encoding-corrected.mbox"
+
+        check_tree(source, corrected_mbox=corrected)
+
+        parser = BytesParser(policy=policy.default)
+        store = mailbox.mbox(corrected, factory=lambda stream: parser.parse(stream))
+        try:
+            message = parser.parsebytes(store.get_file(0).read())
+        finally:
+            store.close()
+        self.assertEqual(
+            message.get("Content-Transfer-Encoding"), "quoted-printable"
+        )
+        self.assertIn("Fran\u00e7ais", message.get_content())
+
+    def test_replacement_character_in_valid_utf8_html_is_reported(self) -> None:
+        source = self.write_mbox(
+            "html-replacement",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: x\n"
+            b"Content-Type: text/html; charset=utf-8\n\n"
+            b"<html><body>Caf\xef\xbf\xbd here</body></html>\n",
+        )
+
+        count, findings = check_tree(source)
+
+        self.assertEqual(count, 1)
+        self.assertTrue(any("U+FFFD" in finding.problem for finding in findings))
+
+    def test_mojibake_in_valid_utf8_html_is_repaired(self) -> None:
+        source = self.write_mbox(
+            "html-mojibake",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: ok\nMIME-Version: 1.0\n"
+            b"Content-Type: multipart/alternative; boundary=x\n\n"
+            b"--x\nContent-Type: text/plain; charset=utf-8\n\n"
+            b"Fran\xc3\x83\xc2\xa7ais\n"
+            b"--x\nContent-Type: text/html; charset=utf-8\n\n"
+            + "<html><body>Fran\xc3\x83\xc2\xa7ais</body></html>".encode("utf-8")
+            + b"\n--x--\n",
+        )
+        corrected = self.output_root / "html-mojibake-corrected.mbox"
+
+        count, findings = check_tree(
+            source, corrected_mbox=corrected, only_unresolved=True
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(findings, [])
+        parser = BytesParser(policy=policy.default)
+        store = mailbox.mbox(corrected, factory=lambda stream: parser.parse(stream))
+        try:
+            message = parser.parsebytes(store.get_file(0).read())
+        finally:
+            store.close()
+        html_part = next(
+            part for part in message.walk()
+            if part.get_content_type() == "text/html"
+        )
+        self.assertIn("Fran\u00e7ais", html_part.get_content())
+
+    def test_replacement_is_not_recovered_across_unrelated_parts(self) -> None:
+        source = self.write_mbox(
+            "unrelated-parts",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: x\nMIME-Version: 1.0\n"
+            b"Content-Type: multipart/mixed; boundary=x\n\n"
+            b"--x\nContent-Type: text/plain; charset=utf-8\n\n"
+            b"Votre compte de r\xc3\xa9gl\xc3\xa9ment se trouve au Compte "
+            b"Ch\xef\xbf\xbdque, r\xc3\xa9f\xc3\xa9rence finale 12345.\n"
+            b"--x\nContent-Type: text/html; charset=utf-8\n\n"
+            b"<p>Votre compte de r\xc3\xa9gl\xc3\xa9ment se trouve au Compte "
+            b"Ch\xc3\xa8que, r\xc3\xa9f\xc3\xa9rence finale 12345.</p>\n"
+            b"--x--\n",
+        )
+        corrected = self.output_root / "unrelated-parts-corrected.mbox"
+
+        count, findings = check_tree(
+            source, corrected_mbox=corrected, only_unresolved=True
+        )
+
+        self.assertEqual(count, 1)
+        self.assertTrue(any("U+FFFD" in finding.problem for finding in findings))
+        self.assertFalse(corrected.exists() and corrected.stat().st_size)
+
+    def test_replacement_is_recovered_between_real_alternatives(self) -> None:
+        source = self.write_mbox(
+            "real-alternatives",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: x\nMIME-Version: 1.0\n"
+            b"Content-Type: multipart/alternative; boundary=x\n\n"
+            b"--x\nContent-Type: text/plain; charset=utf-8\n\n"
+            b"Votre compte de r\xc3\xa9gl\xc3\xa9ment se trouve au Compte "
+            b"Ch\xef\xbf\xbdque, r\xc3\xa9f\xc3\xa9rence finale 12345.\n"
+            b"--x\nContent-Type: text/html; charset=utf-8\n\n"
+            b"<p>Votre compte de r\xc3\xa9gl\xc3\xa9ment se trouve au Compte "
+            b"Ch\xc3\xa8que, r\xc3\xa9f\xc3\xa9rence finale 12345.</p>\n"
+            b"--x--\n",
+        )
+        corrected = self.output_root / "real-alternatives-corrected.mbox"
+
+        count, findings = check_tree(
+            source, corrected_mbox=corrected, only_unresolved=True
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(findings, [])
+        parser = BytesParser(policy=policy.default)
+        store = mailbox.mbox(corrected, factory=lambda stream: parser.parse(stream))
+        try:
+            message = parser.parsebytes(store.get_file(0).read())
+        finally:
+            store.close()
+        plain_part = next(
+            part for part in message.walk()
+            if part.get_content_type() == "text/plain"
+        )
+        self.assertIn("Ch\u00e8que", plain_part.get_content())
+
+    def test_contextual_replacement_keeps_the_case_of_the_source(self) -> None:
+        self.assertEqual(
+            check_encoding._repair_contextual_replacements("d\ufffdj\ufffdur"),
+            ("d\u00e9j\u00e0ur", 1),
+        )
+        self.assertEqual(
+            check_encoding._repair_contextual_replacements("D\ufffdJ\ufffdUR"),
+            ("D\u00c9J\u00c0UR", 1),
+        )
+        self.assertEqual(
+            check_encoding._repair_contextual_replacements("t\ufffdl\ufffdchargez"),
+            ("t\u00e9l\u00e9chargez", 1),
+        )
+        self.assertEqual(
+            check_encoding._repair_contextual_replacements("T\ufffdL\ufffdCHARGEZ"),
+            ("T\u00c9L\u00c9CHARGEZ", 1),
+        )
+
+    def test_embedded_message_is_repaired_without_losing_the_outer_message(
+        self,
+    ) -> None:
+        source = self.write_mbox(
+            "embedded",
+            b"From sender@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: outer\nMIME-Version: 1.0\n"
+            b"Content-Type: multipart/mixed; boundary=x\n\n"
+            b"--x\nContent-Type: text/plain; charset=utf-8\n\nouter body\n"
+            b"--x\nContent-Type: message/rfc822\n\n"
+            b">From inner@example.com Sat Jan  1 00:00:00 2022\n"
+            b"Subject: inner\nMessage-ID: <inner@example.com>\n"
+            b"Content-Type: text/plain; charset=utf-8\n\n"
+            b"inner Fran\xc3\x83\xc2\xa7ais\n"
+            b"--x--\n",
+        )
+        corrected = self.output_root / "embedded-corrected.mbox"
+
+        count, findings = check_tree(
+            source, corrected_mbox=corrected, only_unresolved=True
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(findings, [])
+        blob = corrected.read_bytes()
+        self.assertIn(b"Subject: outer", blob)
+        self.assertIn(b"outer body", blob)
+        self.assertIn(b"Subject: inner", blob)
+        self.assertIn(b"Fran\xc3\xa7ais", blob)
 
     def test_main_escapes_output_not_representable_in_windows_console(self) -> None:
         self.write_mbox(

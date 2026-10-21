@@ -115,7 +115,7 @@ CONTEXTUAL_REPLACEMENTS = {
     "s\ufffdlection": "s\u00e9lection",
     "personnalis\ufffde": "personnalis\u00e9e",
     "\ufffd l'attention des clients soci\u00e9taires": (
-        "\u00c0 l'attention des clients soci\u00e9taires"
+        "\u00e0 l'attention des clients soci\u00e9taires"
     ),
     "\ufffd l'Assembl\u00e9e G\u00e9n\u00e9rale": "\u00e0 l'Assembl\u00e9e G\u00e9n\u00e9rale",
     "invitons \ufffd la lire": "invitons \u00e0 la lire",
@@ -217,7 +217,7 @@ CONTEXTUAL_REPLACEMENTS = {
     ),
     "au plus t\ufffdt": "au plus t\u00f4t",
     "\ufffd partir": "\u00e0 partir",
-    "commencera \ufffd 18h00": "commencera \u00e0 18H00",
+    "commencera \ufffd 18h00": "commencera \u00e0 18h00",
     "\ufffdvolution de la r\ufffdglementation": (
         "\u00e9volution de la r\u00e9glementation"
     ),
@@ -226,7 +226,7 @@ CONTEXTUAL_REPLACEMENTS = {
     "\ufffdtant effectu\ufffd par moyen \ufffdlectronique": (
         "\u00e9tant effectu\u00e9 par moyen \u00e9lectronique"
     ),
-    "\ufffdshutterstock": "\u00a9Shutterstock",
+    "\ufffdshutterstock": "\u00a9shutterstock",
     "vous trouverez ci-dessous votre re\ufffdu de paiement \ufffd conserver": (
         "vous trouverez ci-dessous votre re\u00e7u de paiement \u00e0 conserver"
     ),
@@ -238,7 +238,7 @@ CONTEXTUAL_REPLACEMENTS = {
     "\ufffdtre acteur de r\ufffdf\ufffdrence": (
         "\u00eatre acteur de r\u00e9f\u00e9rence"
     ),
-    "accueil \ufffd partir de 17h30": "accueil \u00e0 partir de 17H30",
+    "accueil \ufffd partir de 17h30": "accueil \u00e0 partir de 17h30",
     "la strat\ufffdgie de votre banque, face \ufffd ces d\ufffdfis": (
         "la strat\u00e9gie de votre banque, face \u00e0 ces d\u00e9fis"
     ),
@@ -246,7 +246,7 @@ CONTEXTUAL_REPLACEMENTS = {
         "soci\u00e9t\u00e9 coop\u00e9rative \u00e0 capital variable"
     ),
     "cr\ufffddits photos : \ufffdshutterstock": (
-        "cr\u00e9dits photos : \u00a9Shutterstock"
+        "cr\u00e9dits photos : \u00a9shutterstock"
     ),
     "remember \ufffd your contribution is anonymous": (
         "remember \u2014 your contribution is anonymous"
@@ -362,11 +362,11 @@ CONTEXTUAL_REPLACEMENTS = {
         "re\u00e7u de paiement \u00e0 conserver"
     ),
     "fringues \ufffd jeter": "fringues \u00e0 jeter",
-    "la tha\u00eflande, \ufffda allait": "la Tha\u00eflande, \u00e7a allait",
+    "la tha\u00eflande, \ufffda allait": "la tha\u00eflande, \u00e7a allait",
     "de 4 \ufffd 10 euros": "de 4 \u00e0 10 euros",
     "structures \ufffd en fournir": "structures \u00e0 en fournir",
     "\ufffda fait tard": "\u00e7a fait tard",
-    "cet \ufffdt\ufffd en inde": "cet \u00e9t\u00e9 en Inde",
+    "cet \ufffdt\ufffd en inde": "cet \u00e9t\u00e9 en inde",
     "pour l'\ufffdt\ufffd dernier": "pour l'\u00e9t\u00e9 dernier",
     "l'\ufffdt\ufffd dernier": "l'\u00e9t\u00e9 dernier",
     "qu'on \ufffdtait": "qu'on \u00e9tait",
@@ -410,7 +410,7 @@ CONTEXTUAL_REPLACEMENTS = {
     " \ufffd faire": " \u00e0 faire",
     "un \ufffdventuel": "un \u00e9ventuel",
     "achat de mat\ufffdriel \ufffd simteam": (
-        "achat de mat\u00e9riel \u00e0 Simteam"
+        "achat de mat\u00e9riel \u00e0 simteam"
     ),
     "\ufffdcrire un article": "\u00e9crire un article",
     "d\ufffdveloppement": "d\u00e9veloppement",
@@ -419,21 +419,21 @@ CONTEXTUAL_REPLACEMENTS = {
     "o\ufffd mettre les contacts": "o\u00f9 mettre les contacts",
     "sera utilis\ufffd pour le rapport": "sera utilis\u00e9 pour le rapport",
     "penser \ufffdventuellement \ufffd kyle": (
-        "penser \u00e9ventuellement \u00e0 Kyle"
+        "penser \u00e9ventuellement \u00e0 kyle"
     ),
-    "interface \ufffd latek": "interface \u00e0 Latek",
+    "interface \ufffd latek": "interface \u00e0 latek",
     "n\ufffd de t\ufffdl.": "n\u00b0 de t\u00e9l.",
     "n\ufffd de": "n\u00b0 de",
     "1\ufffdre messagerie": "1\u00e8re messagerie",
     "instantan\ufffde": "instantan\u00e9e",
-    "t\ufffdl\ufffdcharger msn messenger": "t\u00e9l\u00e9charger MSN Messenger",
+    "t\ufffdl\ufffdcharger msn messenger": "t\u00e9l\u00e9charger msn messenger",
     "n\ufffd fiscal": "n\u00b0 fiscal",
     "coll\ufffdgues \ufffd se connecter": "coll\u00e8gues \u00e0 se connecter",
     "image \ufffd 2011 linkedin corporation": (
-        "image \u00a9 2011 LinkedIn Corporation"
+        "image \u00a9 2011 linkedin corporation"
     ),
     "alain thiebat \ufffdchouer rapidement": (
-        "Alain Thiebat \u00e9chouer rapidement"
+        "alain thiebat \u00e9chouer rapidement"
     ),
     "n'a pas \ufffdt\ufffd envoy\ufffd \ufffd son destinataire": (
         "n'a pas \u00e9t\u00e9 envoy\u00e9 \u00e0 son destinataire"
@@ -448,7 +448,7 @@ CONTEXTUAL_REPLACEMENTS = {
         "mise \u00e0 disposition de vos documents"
     ),
     "analytics \ufffd\u00a0google\u00a0inc.": (
-        "Analytics \u00a9\u00a0Google\u00a0Inc."
+        "analytics \u00a9\u00a0google\u00a0inc."
     ),
     "acc\ufffds en lecture": "acc\u00e8s en lecture",
     "249\ufffd": "249\u20ac",
@@ -494,7 +494,7 @@ CONTEXTUAL_REPLACEMENTS = {
         "coll\u00e8gues \u00e0 se connecter"
     ),
     "image \n\n\ufffd 2011 linkedin corporation": (
-        "image \n\n\u00a9 2011 LinkedIn Corporation"
+        "image \n\n\u00a9 2011 linkedin corporation"
     ),
     "destin\u00e9es \ufffd vous": "destin\u00e9es \u00e0 vous",
     "</a> \ufffdchouer rapidement": "</a> \u00e9chouer rapidement",
@@ -509,7 +509,7 @@ CONTEXTUAL_REPLACEMENTS = {
     ),
     "face \ufffd ces \nd\u00e9fis": "face \u00e0 ces \nd\u00e9fis",
     "-aspect \ufffd cao \ufffd ou \ufffd prototypage \ufffd": (
-        "-Aspect \u00ab CAO \u00bb ou \u00ab prototypage \u00bb"
+        "-aspect \u00ab cao \u00bb ou \u00ab prototypage \u00bb"
     ),
     "d'am\ufffdlioration": "d'am\u00e9lioration",
     "e-mail \ufffd idee@": "e-mail \u00e0 idee@",
@@ -629,6 +629,29 @@ def iter_mboxes(root: Path) -> Iterator[Path]:
             yield path
 
 
+def _envelope_bytes(store: mailbox.mbox, key) -> bytes | None:
+    """Return the raw mbox envelope line of a message.
+
+    The stdlib decodes the envelope as ASCII, which raises on mailboxes
+    written with a non-ASCII sender name, so read the raw bytes instead.
+    """
+    try:
+        raw = store.get_bytes(key, from_=True)
+    except (KeyError, OSError, ValueError):
+        return None
+    newline = raw.find(b"\n")
+    line = raw if newline < 0 else raw[:newline]
+    line = line.rstrip(b"\r")
+    return line if line.startswith(b"From ") else None
+
+
+def _with_envelope(envelope: bytes | None, serialized: bytes) -> bytes:
+    """Prefix a serialized message with its original mbox envelope line."""
+    if envelope is None:
+        return serialized
+    return envelope + b"\n" + serialized
+
+
 def excerpt(text: str, focus_index: int | None = None) -> str:
     compact = " ".join(text.split())
     if len(compact) <= SNIPPET_LIMIT:
@@ -711,6 +734,12 @@ def _charset_label(charset: str) -> str:
 
 
 def _is_valid_utf8_html(part: EmailMessage, decoded: DecodedBody) -> bool:
+    """Return True when the HTML part is valid UTF-8.
+
+    Such a part is not inspected for mojibake, to avoid treating valid
+    UTF-8 HTML as corrupt. A replacement character is a real loss of data
+    and is still reported.
+    """
     return (
         part.get_content_type() == "text/html"
         and decoded.issue is None
@@ -1003,6 +1032,39 @@ def add_suspect_headers(message: EmailMessage, findings: list[Finding]) -> None:
         message.add_header(header_name, details)
 
 
+def _embedded_message(part: EmailMessage) -> EmailMessage | None:
+    """Return the message carried by a ``message/rfc822`` part."""
+    payload = part.get_payload()
+    if isinstance(payload, list) and len(payload) == 1:
+        inner = payload[0]
+        if isinstance(inner, EmailMessage):
+            return inner
+    return None
+
+
+def _inspect_embedded_message(
+    part: EmailMessage,
+    mailbox_path: Path,
+    message_number: int,
+) -> list[Finding]:
+    """Inspect the message carried by a ``message/rfc822`` part.
+
+    The embedded message has its own headers and body, so it is inspected
+    on its own rather than as a part of the enclosing message.
+    """
+    inner = _embedded_message(part)
+    if inner is None:
+        return []
+    findings = inspect_header(inner, "subject", "subject (attached message)", mailbox_path, message_number)
+    findings.extend(
+        inspect_header(inner, "from", "sender (attached message)", mailbox_path, message_number)
+    )
+    findings.extend(
+        inspect_body_part(inner, mailbox_path, message_number)
+    )
+    return findings
+
+
 def inspect_body_part(
     part: EmailMessage,
     mailbox_path: Path,
@@ -1010,6 +1072,8 @@ def inspect_body_part(
 ) -> list[Finding]:
     if part.get_content_disposition() == "attachment" or part.get_filename():
         return []
+    if part.get_content_type() == "message/rfc822":
+        return _inspect_embedded_message(part, mailbox_path, message_number)
     if part.is_multipart():
         return [
             finding
@@ -1036,9 +1100,6 @@ def inspect_body_part(
                 excerpt(decoded.text),
             )
         ]
-    if _is_valid_utf8_html(part, decoded):
-        return []
-
     findings = []
     if decoded.issue is not None:
         findings.append(
@@ -1050,6 +1111,21 @@ def inspect_body_part(
                 excerpt(decoded.text),
             )
         )
+    if _is_valid_utf8_html(part, decoded):
+        # Valid UTF-8 HTML is not inspected for mojibake, but a replacement
+        # character is a real loss of data and is still reported.
+        if "�" in decoded.text:
+            findings.append(
+                Finding(
+                    mailbox_path,
+                    message_number,
+                    field,
+                    "replacement character (U+FFFD); decoding may already have lost data",
+                    excerpt(decoded.text, decoded.text.index("�")),
+                )
+            )
+        return findings
+
     findings.extend(
         inspect_text(decoded.text, mailbox_path, message_number, field)
     )
@@ -1233,6 +1309,101 @@ def _recover_text_replacements(
     return repaired, len(replacements)
 
 
+def _match_source_case(original: str, corrupted: str, replacement: str) -> str:
+    """Re-case a reconstructed fragment to match the text it replaces.
+
+    The rules are recorded with the casing of the message they came from,
+    which is not always the casing of the scanned text. A letter whose case
+    differs between the rule template and the scanned text follows the
+    scanned text, so that a lower-case sentence is not turned into an
+    upper-case one. The letters restored from a placeholder follow the case
+    of the source.
+    """
+    if len(original) != len(corrupted):
+        return replacement
+    source_letters = [character for character in original if character.isalpha()]
+    template_letters = [character for character in corrupted if character.isalpha()]
+    if len(source_letters) != len(template_letters):
+        return replacement
+    alignment = _align_letters(template_letters, replacement)
+    if alignment is None:
+        return replacement
+    surviving, restored = alignment
+    characters = list(replacement)
+    for source_character, template_character, position in zip(
+        source_letters, template_letters, surviving
+    ):
+        target = characters[position]
+        if not target.isalpha():
+            continue
+        if source_character.isupper() == template_character.isupper():
+            continue
+        characters[position] = (
+            target.upper() if source_character.isupper() else target.lower()
+        )
+    upper = bool(source_letters) and all(
+        character.isupper() for character in source_letters
+    )
+    lower = bool(source_letters) and all(
+        character.islower() for character in source_letters
+    )
+    for position in restored:
+        target = characters[position]
+        if not target.isalpha():
+            continue
+        if upper:
+            characters[position] = target.upper()
+        elif lower:
+            characters[position] = target.lower()
+    return "".join(characters)
+
+
+def _fold(character: str) -> str:
+    """Return a comparable form of a letter, ignoring case and accents."""
+    decomposed = unicodedata.normalize("NFKD", character)
+    return "".join(
+        part for part in decomposed if not unicodedata.combining(part)
+    ).casefold()
+
+
+def _align_letters(
+    template_letters: list[str],
+    replacement: str,
+) -> tuple[list[int], list[int]] | None:
+    """Align the letters of a rule template with the letters of its fix.
+
+    The letters that survived in the template are matched, in order and
+    ignoring case and accents, with the letters of the fix. The letters of
+    the fix that have no counterpart are the ones restored from a
+    placeholder.
+
+    Returns the positions of the fix that carry a surviving letter and the
+    positions of the fix that come from a placeholder.
+    """
+    fix_letters = [
+        index for index, character in enumerate(replacement) if character.isalpha()
+    ]
+    if len(template_letters) > len(fix_letters):
+        return None
+    surviving: list[int] = []
+    restored: list[int] = []
+    cursor = 0
+    for character in template_letters:
+        match = None
+        for offset in range(cursor, len(fix_letters)):
+            candidate = fix_letters[offset]
+            if _fold(replacement[candidate]) == _fold(character):
+                match = offset
+                break
+        if match is None:
+            return None
+        restored.extend(fix_letters[cursor:match])
+        surviving.append(fix_letters[match])
+        cursor = match + 1
+    restored.extend(fix_letters[cursor:])
+    return surviving, restored
+
+
 def _repair_contextual_replacements(text: str) -> tuple[str, int]:
     if "\ufffd" not in text:
         return text, 0
@@ -1264,10 +1435,7 @@ def _repair_contextual_replacements(text: str) -> tuple[str, int]:
             ):
                 continue
             original = text[start:end]
-            if original.isupper():
-                replacement = replacement.upper()
-            elif original[0].isupper():
-                replacement = replacement[0].upper() + replacement[1:]
+            replacement = _match_source_case(original, corrupted, replacement)
             matches.append((start, end, replacement, corrupted))
         marker_index = text.find("\ufffd", marker_index + 1)
 
@@ -1285,6 +1453,56 @@ def _repair_contextual_replacements(text: str) -> tuple[str, int]:
     return repaired, len(selected)
 
 
+def _preserved_transfer_encoding(part: EmailMessage) -> str | None:
+    """Return the part's current transfer encoding, if it can be reused.
+
+    Rewriting a part as 8bit changes the encoded bytes for no benefit, so
+    an existing quoted-printable or base64 encoding is kept. 7bit cannot
+    hold non-ASCII text and is dropped so the encoder picks a usable one.
+    """
+    encoding = (part.get("Content-Transfer-Encoding") or "").strip().lower()
+    if encoding in {"quoted-printable", "base64"}:
+        return encoding
+    return None
+
+
+def _set_repaired_content(
+    part: EmailMessage,
+    text: str,
+    transfer_encoding: str | None = None,
+) -> None:
+    """Replace a text part's body, keeping its other headers intact.
+
+    ``set_content`` calls ``clear_content()``, which drops every
+    ``Content-*`` header. That would discard ``Content-ID``,
+    ``Content-Location``, ``Content-Description`` and
+    ``Content-Disposition`` on a repaired part, so they are captured
+    beforehand and restored afterwards.
+    """
+    preserved = [
+        (name, value)
+        for name, value in part.items()
+        if name.lower().startswith("content-")
+        and name.lower() not in {"content-type", "content-transfer-encoding"}
+    ]
+    content_type_params = part.get_params(header="Content-Type", unquote=True) or []
+    preserved_params = [
+        (name, value)
+        for name, value in content_type_params[1:]
+        if name.lower() != "charset"
+    ]
+    part.set_content(
+        text,
+        subtype=part.get_content_subtype(),
+        charset="utf-8",
+        cte=transfer_encoding,
+    )
+    for name, value in preserved_params:
+        part.set_param(name, value, header="Content-Type", replace=False)
+    for name, value in preserved:
+        part[name] = value
+
+
 def repair_body_part(
     part: EmailMessage,
     alternatives: list[tuple[str, str]] | None = None,
@@ -1292,6 +1510,12 @@ def repair_body_part(
     alternatives = alternatives or []
     if part.get_content_disposition() == "attachment" or part.get_filename():
         return []
+    if part.get_content_type() == "message/rfc822":
+        inner = _embedded_message(part)
+        if inner is None:
+            return []
+        changes = repair_message(inner)
+        return [f"attached message: {change}" for change in changes]
     if part.is_multipart():
         changes: list[str] = []
         for child in part.iter_parts():
@@ -1306,7 +1530,11 @@ def repair_body_part(
     if _opaque_body_reason(payload) is not None:
         return []
     decoded = decode_body_part(part, payload)
-    if _is_valid_utf8_html(part, decoded):
+    if part.get_content_type() == "text/html" and _is_valid_utf8_html(part, decoded):
+        # A valid UTF-8 HTML part is not inspected for mojibake, but the
+        # signature marker and a lost character can still be repaired, and
+        # the mojibake it holds is fixed so that it agrees with its
+        # text/plain alternative.
         repaired_text, cleaned_markers = _clean_known_utf8_html_signature(
             decoded.text
         )
@@ -1323,7 +1551,14 @@ def repair_body_part(
                     part.get_content_type(),
                     matching_plain,
                 )
-        if not cleaned_markers and not recovered_replacements:
+        repaired_mojibake = repair_mojibake(repaired_text)
+        if repaired_mojibake is not None:
+            repaired_text = repaired_mojibake
+        if (
+            not cleaned_markers
+            and not recovered_replacements
+            and repaired_mojibake is None
+        ):
             return []
         changes = []
         if cleaned_markers:
@@ -1336,20 +1571,10 @@ def repair_body_part(
                 f"{recovered_replacements} replacement character(s) "
                 "from text/plain alternative"
             )
+        if repaired_mojibake is not None:
+            changes.append("text/html: repaired reversible mojibake")
         repaired_text = _set_html_meta_charset(repaired_text, "utf-8")
-        content_type_params = part.get_params(header="Content-Type", unquote=True) or []
-        preserved_params = [
-            (name, value)
-            for name, value in content_type_params[1:]
-            if name.lower() != "charset"
-        ]
-        part.set_content(
-            repaired_text,
-            subtype=part.get_content_subtype(),
-            charset="utf-8",
-        )
-        for name, value in preserved_params:
-            part.set_param(name, value, header="Content-Type", replace=False)
+        _set_repaired_content(part, repaired_text)
         return changes
 
     repaired_text = repair_mojibake(decoded.text)
@@ -1409,25 +1634,69 @@ def repair_body_part(
             changes.append("aligned HTML meta charset to UTF-8")
         repaired_text = updated_text
 
-    content_type_params = part.get_params(header="Content-Type", unquote=True) or []
     previous_charset = part.get_content_charset()
     if previous_charset is not None and previous_charset.lower() != "utf-8":
         changes.append(f"changed MIME charset from {previous_charset} to UTF-8")
     elif previous_charset is None:
         changes.append("added UTF-8 MIME charset")
-    preserved_params = [
-        (name, value)
-        for name, value in content_type_params[1:]
-        if name.lower() != "charset"
-    ]
-    part.set_content(
+    _set_repaired_content(
+        part,
         repaired_text,
-        subtype=part.get_content_subtype(),
-        charset="utf-8",
+        transfer_encoding=_preserved_transfer_encoding(part),
     )
-    for name, value in preserved_params:
-        part.set_param(name, value, header="Content-Type", replace=False)
     return [f"{part.get_content_type()}: {change}" for change in changes]
+
+
+def _alternative_texts(
+    message: EmailMessage,
+) -> dict[int, list[tuple[str, str]]]:
+    """Map each text part to the parts that may supply a missing character.
+
+    Only parts that are real alternatives of each other can recover a lost
+    character. The children of a ``multipart/alternative`` are such
+    alternatives; the parts of a ``multipart/mixed`` or
+    ``multipart/related`` are not, so they are never used as a recovery
+    source for each other.
+    """
+    groups: dict[int, list[tuple[str, str]]] = {}
+
+    def text_of(part: EmailMessage) -> tuple[str, str] | None:
+        if part.get_content_type() not in {"text/plain", "text/html"}:
+            return None
+        if part.get_content_disposition() == "attachment" or part.get_filename():
+            return None
+        payload = part.get_payload(decode=True)
+        if payload is None or _opaque_body_reason(payload) is not None:
+            return None
+        decoded = decode_body_part(part, payload)
+        return (
+            part.get_content_type(),
+            repair_mojibake(decoded.text) or decoded.text,
+        )
+
+    def collect(part: EmailMessage, group: list[tuple[str, str]]) -> None:
+        if part.get_content_type() == "message/rfc822":
+            return
+        if part.is_multipart():
+            if part.get_content_subtype() == "alternative":
+                texts: list[tuple[str, str]] = []
+                for child in part.iter_parts():
+                    collect(child, texts)
+                group.extend(texts)
+                return
+            # The parts of a mixed or related message are not alternatives
+            # of each other, so each of them gets its own group.
+            for child in part.iter_parts():
+                collect(child, [])
+            return
+        entry = text_of(part)
+        if entry is None:
+            return
+        group.append(entry)
+        groups[id(part)] = group
+
+    collect(message, [])
+    return groups
 
 
 def repair_message(message: EmailMessage) -> list[str]:
@@ -1463,24 +1732,25 @@ def repair_message(message: EmailMessage) -> list[str]:
                     f"{header_name}: decoded RFC-2047 or unsupported charset"
                 )
 
-    alternatives = [
-        (
-            part.get_content_type(),
-            repair_mojibake(decoded.text) or decoded.text,
-        )
-        for part in message.walk()
-        if part.get_content_type() in {"text/plain", "text/html"}
-        and part.get_content_disposition() != "attachment"
-        and not part.get_filename()
-        and (payload := part.get_payload(decode=True)) is not None
-        and _opaque_body_reason(payload) is None
-        for decoded in [decode_body_part(part, payload)]
-    ]
-    for part in message.walk():
+    alternative_groups = _alternative_texts(message)
+    for part in _top_level_parts(message):
         if part.is_multipart():
             continue
+        alternatives = alternative_groups.get(id(part), [])
         changes.extend(repair_body_part(part, alternatives))
     return changes
+
+
+def _top_level_parts(message: EmailMessage) -> Iterator[EmailMessage]:
+    """Yield the parts of a message, without descending into attachments.
+
+    A ``message/rfc822`` part carries a whole message of its own, which is
+    repaired on its own, so its own parts are not yielded here.
+    """
+    for part in message.walk():
+        if part.get_content_type() == "message/rfc822":
+            continue
+        yield part
 
 
 def serialize_message(message: EmailMessage) -> bytes:
@@ -1634,11 +1904,7 @@ def check_tree(
             try:
                 for message_number, key in enumerate(store.iterkeys(), start=1):
                     message_count += 1
-                    envelope = (
-                        staged_store.get_message(key).get_unixfrom()
-                        if staged_store is not None
-                        else None
-                    )
+                    envelope = _envelope_bytes(store, key)
                     message = (
                         staged_store[key] if staged_store is not None else store[key]
                     )
@@ -1685,9 +1951,8 @@ def check_tree(
                             )
                         message.set_unixfrom(None)
                         serialized_message = serialize_message(message)
-                        envelope_bytes = envelope.rstrip("\r\n").encode("ascii")
-                        staged_store[key] = (
-                            envelope_bytes + b"\n" + serialized_message
+                        staged_store[key] = _with_envelope(
+                            envelope, serialized_message
                         )
                         mailbox_changed = True
                     fully_repaired = bool(corrections) and not remaining_findings
@@ -1696,11 +1961,15 @@ def check_tree(
                         if "suspects" in output_stores:
                             suspect_findings = remaining_findings
                             add_suspect_headers(message, suspect_findings)
-                            output_stores["suspects"].add(serialize_message(message))
+                            output_stores["suspects"].add(
+                                _with_envelope(envelope, serialize_message(message))
+                            )
                     if fully_repaired:
                         corrected_count += 1
                         if "corrected" in output_stores:
-                            output_stores["corrected"].add(serialize_message(message))
+                            output_stores["corrected"].add(
+                                _with_envelope(envelope, serialize_message(message))
+                            )
                     if progress is not None and message_count % 100 == 0:
                         progress(
                             f"Progress: {message_count} message(s) scanned "
